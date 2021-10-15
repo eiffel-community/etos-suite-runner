@@ -46,7 +46,7 @@ class ResultHandler:
         """Whether or not test suites have finished.
 
         Feature flag:
-            If feature flag DISABLE_CLM is set to true, then this method does
+            If feature flag CLM is set to false, then this method does
             not wait for subConfidence levels.
 
         :return: If tests have started, there are subSuitesFinished and subConfidence levels,
@@ -62,17 +62,17 @@ class ResultHandler:
         nbr_of_finished = len(self.events.get("subSuiteFinished"))
         expected_number_of_suites = self.etos.config.get("nbr_of_suites")
 
-        if self.etos.feature_flags.disable_clm:
-            return nbr_of_finished == expected_number_of_suites
-        else:
+        if self.etos.feature_flags.clm:
             self.logger.warning("DEPRECATED: Please note that confidence levels are deprecated in ETOS.\n"
-                                "Use feature flag DISABLE_CLM to disable this deprecated feature.")
+                                "Set feature flag CLM to false in order to disable this deprecated feature.")
             if not self.events.get("subConfidenceLevelModified"):
                 return False
             nbr_of_confidence = len(self.events.get("subConfidenceLevelModified"))
             if nbr_of_confidence != expected_number_of_suites:
                 return False
             return nbr_of_confidence == nbr_of_finished
+        else:
+            return nbr_of_finished == expected_number_of_suites
 
     @property
     def test_suites_finished(self):
@@ -178,9 +178,9 @@ class ResultHandler:
             self.events["subSuiteFinished"] = finished
         events["subSuiteFinished"] = self.events.get("subSuiteFinished", [])
 
-        if not self.etos.feature_flags.disable_clm:
+        if self.etos.feature_flags.clm:
             self.logger.warning("DEPRECATED: Please note that confidence levels are deprecated in ETOS.\n"
-                                "Use feature flag DISABLE_CLM to disable this deprecated feature.")
+                                "Set feature flag CLM to false in order to disable this deprecated feature.")
             if (
                 len(self.events.get("subConfidenceLevelModified", []))
                 != expected_number_of_suites

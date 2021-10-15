@@ -26,7 +26,7 @@ class SuiteRunner:
     """Test suite runner.
 
     Feature flag:
-        If feature flag DISABLE_CLM is set to true, then this class
+        If feature flag CLM is set to false, then this class
         will not send confidence levels.
 
     Splits test suites into sub suites based on number of products available.
@@ -62,7 +62,7 @@ class SuiteRunner:
         :type environment: dict
         """
         self.logger.warning("DEPRECATED: Please note that confidence levels are deprecated in ETOS.\n"
-                            "Use feature flag DISABLE_CLM to disable this deprecated feature.")
+                            "Set feature flag CLM to false in order to disable this deprecated feature.")
         links = {
             "CONTEXT": self.context,
             "CAUSE": test_suite_started,
@@ -154,7 +154,7 @@ class SuiteRunner:
         try:
             self._run_etr_and_wait(environment)
             verdict, conclusion, description = self.result_handler.test_results()
-            if not self.etos.feature_flags.disable_clm:
+            if self.etos.feature_flags.clm:
                 self.confidence_level(test_suite_started, environment)
             time.sleep(5)
         except Exception as exc:
