@@ -21,7 +21,6 @@ import logging
 import traceback
 import signal
 import threading
-from uuid import uuid4
 
 from etos_lib import ETOS
 from etos_lib.logging.logger import FORMAT_CONFIG
@@ -120,11 +119,14 @@ class ESR:  # pylint:disable=too-many-instance-attributes
             if response and result:
                 break
         else:
-            self.params.set_status(
-                "FAILURE",
-                "Unknown Error: Did not receive an environment "
-                f"within {self.etos.debug.default_http_timeout}s",
-            )
+            if response and result:
+                self.params.set_status(response.get("status"), result.get("error"))
+            else:
+                self.params.set_status(
+                    "FAILED",
+                    "Unknown Error: Did not receive an environment "
+                    f"within {self.etos.debug.default_http_timeout}s",
+                )
 
     def _release_environment(self, task_id):
         """Release an environment from the environment provider.
@@ -155,7 +157,7 @@ class ESR:  # pylint:disable=too-many-instance-attributes
         return task_id
 
     def run_suites(self, triggered):
-        """Start up a suite runner handling multiple suites that execute within test runners.
+        """Trigger an activity and starts the actual test runner.
 
         Will only start the test activity if there's a 'slot' available.
 
@@ -177,7 +179,7 @@ class ESR:  # pylint:disable=too-many-instance-attributes
         task_id = None
         try:
             LOGGER.info("Wait for test environment.")
-            task_id = self._reserve_workers(ids)
+            task_id = self._reserve_workers()
             self.etos.config.set("task_id", task_id)
             threading.Thread(
                 target=self._get_environment_status, args=(task_id,), daemon=True

@@ -66,3 +66,21 @@ ENVIRONMENTS = """
   }
 }
 """
+
+ENVIRONMENTS = """
+{
+  environmentDefined(search:"{'links.type': 'CONTEXT', 'links.target': '%s'}") {
+    edges {
+      node {
+        data {
+          name
+          uri
+        }
+        meta {
+          id
+        }
+      }
+    }
+  }
+}
+"""
