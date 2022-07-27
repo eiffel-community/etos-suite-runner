@@ -1,4 +1,4 @@
-# Copyright 2020 Axis Communications AB.
+# Copyright 2020-2022 Axis Communications AB.
 #
 # For a full list of individual contributors, please see the commit history.
 #
@@ -56,6 +56,24 @@ TEST_SUITE_FINISHED = """
           testSuiteOutcome {
             verdict
           }
+        }
+      }
+    }
+  }
+}
+"""
+
+ENVIRONMENTS = """
+{
+  environmentDefined(search:"{'links.type': 'CONTEXT', 'links.target': '%s'}") {
+    edges {
+      node {
+        data {
+          name
+          uri
+        }
+        meta {
+          id
         }
       }
     }

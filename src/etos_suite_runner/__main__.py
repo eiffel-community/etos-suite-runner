@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2020-2021 Axis Communications AB.
+# Copyright 2020-2022 Axis Communications AB.
 #
 # For a full list of individual contributors, please see the commit history.
 #
@@ -20,27 +20,20 @@ import os
 import logging
 import traceback
 import signal
+import threading
 
 from etos_lib import ETOS
 from etos_lib.logging.logger import FORMAT_CONFIG
 
 from etos_suite_runner.lib.runner import SuiteRunner
 from etos_suite_runner.lib.esr_parameters import ESRParameters
+from etos_suite_runner.lib.exceptions import EnvironmentProviderException
 
 # Remove spam from pika.
 logging.getLogger("pika").setLevel(logging.WARNING)
 
 LOGGER = logging.getLogger(__name__)
 BASE_DIR = os.path.dirname(os.path.relpath(__file__))
-
-
-class EnvironmentProviderException(Exception):
-    """Exception from EnvironmentProvider."""
-
-    def __init__(self, msg, task_id):
-        """Initialize with task_id."""
-        self.task_id = task_id
-        super().__init__(msg)
 
 
 class ESR:  # pylint:disable=too-many-instance-attributes
@@ -92,13 +85,11 @@ class ESR:  # pylint:disable=too-many-instance-attributes
             return None, str(exception)
         return task_id, ""
 
-    def _wait_for_environment(self, task_id):
+    def _get_environment_status(self, task_id):
         """Wait for an environment being provided.
 
         :param task_id: Task ID to wait for.
         :type task_id: str
-        :return: Environment and an error message.
-        :rtype: tuple
         """
         timeout = self.etos.config.get("WAIT_FOR_ENVIRONMENT_TIMEOUT")
         wait_generator = self.etos.utils.wait(
@@ -107,30 +98,29 @@ class ESR:  # pylint:disable=too-many-instance-attributes
             timeout=timeout,
             params={"id": task_id},
         )
-        environment = None
         result = {}
         response = None
         for generator in wait_generator:
             for response in generator:
-                result = response.get("result", {})
-                if response and result and result.get("error") is None:
-                    environment = response
+                result = (
+                    response.get("result", {})
+                    if response.get("result") is not None
+                    else {}
+                )
+                self.params.set_status(response.get("status"), result.get("error"))
+                if response and result:
                     break
-                if result and result.get("error"):
-                    return None, result.get("error")
-            if environment is not None:
+            if response and result:
                 break
         else:
-            if result and result.get("error"):
-                return None, result.get("error")
-            return (
-                None,
-                (
+            if response and result:
+                self.params.set_status(response.get("status"), result.get("error"))
+            else:
+                self.params.set_status(
+                    "FAILED",
                     "Unknown Error: Did not receive an environment "
-                    f"within {self.etos.debug.default_http_timeout}s"
-                ),
-            )
-        return environment, ""
+                    f"within {self.etos.debug.default_http_timeout}s",
+                )
 
     def _release_environment(self, task_id):
         """Release an environment from the environment provider.
@@ -151,14 +141,9 @@ class ESR:  # pylint:disable=too-many-instance-attributes
         task_id, msg = self._request_environment()
         if task_id is None:
             raise EnvironmentProviderException(msg, task_id)
+        return task_id
 
-        LOGGER.info("Wait for environment to become ready.")
-        environment, msg = self._wait_for_environment(task_id)
-        if environment is None:
-            raise EnvironmentProviderException(msg, task_id)
-        return environment, task_id
-
-    def run_suite(self, triggered):
+    def run_suites(self, triggered):
         """Trigger an activity and starts the actual test runner.
 
         Will only start the test activity if there's a 'slot' available.
@@ -176,19 +161,22 @@ class ESR:  # pylint:disable=too-many-instance-attributes
         task_id = None
         try:
             LOGGER.info("Wait for test environment.")
-            environment, task_id = self._reserve_workers()
+            task_id = self._reserve_workers()
+            self.etos.config.set("task_id", task_id)
+            threading.Thread(
+                target=self._get_environment_status, args=(task_id,), daemon=True
+            ).start()
 
             self.etos.events.send_activity_started(triggered, {"CONTEXT": context})
 
             LOGGER.info("Starting ESR.")
-            runner.run(environment.get("result"))
+            runner.start_suites_and_wait()
         except EnvironmentProviderException as exception:
             task_id = exception.task_id
-            raise
-        finally:
             LOGGER.info("Release test environment.")
             if task_id is not None:
                 self._release_environment(task_id)
+            raise
 
     @staticmethod
     def verify_input():
@@ -239,7 +227,7 @@ class ESR:  # pylint:disable=too-many-instance-attributes
             raise
 
         try:
-            self.run_suite(triggered)
+            self.run_suites(triggered)
             self.etos.events.send_activity_finished(
                 triggered, {"conclusion": "SUCCESSFUL"}, {"CONTEXT": context}
             )

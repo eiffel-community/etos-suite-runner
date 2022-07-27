@@ -1,4 +1,4 @@
-# Copyright 2020-2021 Axis Communications AB.
+# Copyright 2020-2022 Axis Communications AB.
 #
 # For a full list of individual contributors, please see the commit history.
 #
@@ -16,10 +16,14 @@
 """ETOS suite runner executor."""
 import logging
 import time
-import threading
+from multiprocessing.pool import ThreadPool
 
 from etos_suite_runner.lib.result_handler import ResultHandler
 from etos_suite_runner.lib.executor import Executor
+from etos_suite_runner.lib.exceptions import EnvironmentProviderException
+from etos_suite_runner.lib.graphql import (
+    request_environment_defined,
+)
 
 
 class SuiteRunner:  # pylint:disable=too-few-public-methods
@@ -49,33 +53,97 @@ class SuiteRunner:  # pylint:disable=too-few-public-methods
 
         self.context = context
 
-    def _run_etr_and_wait(self, environment):
-        """Run ETR based on number of IUTs and wait for them to finish.
+    def _release_environment(self, task_id):
+        """Release an environment from the environment provider.
+
+        :param task_id: Task ID to release.
+        :type task_id: str
+        """
+        wait_generator = self.etos.http.wait_for_request(
+            self.etos.debug.environment_provider, params={"release": task_id}
+        )
+        for response in wait_generator:
+            if response:
+                break
+
+    def _run_etr(self, environment):
+        """Trigger an instance of ETR.
 
         :param environment: Environment which to execute in.
         :type environment: dict
-        :return: List of test results from all ETR instances.
-        :rtype: list
         """
+        uri = environment["data"]["uri"]
+        json_header = {"Accept": "application/json"}
+        json_response = self.etos.http.wait_for_request(
+            uri,
+            headers=json_header,
+        )
+        suite = {}
+        for suite in json_response:
+            break
+        else:
+            raise Exception("Could not download sub suite instructions")
+
+        executor = Executor(self.etos)
+        executor.run_tests(suite)
+
+    def _environments(self, suite_name):
+        """Get environments for a specific test suite.
+
+        :param suite_name: Since environment defined events have a name starting with 'suite_name'
+                           we will use this as a part of getting the environments.
+        :type suite_name: str
+        :return: Test suite environments.
+        :rtype: iterator
+        """
+        yielded = []
+        status = {
+            "status": "FAILURE",
+            "error": "Couldn't collect any error information",
+        }
+        timeout = time.time() + self.etos.config.get("WAIT_FOR_ENVIRONMENT_TIMEOUT")
+        while time.time() < timeout:
+            time.sleep(1)
+            status = self.params.environment_status
+            self.logger.info(status)
+            for environment in request_environment_defined(self.etos, self.context):
+                if not environment["data"]["name"].startswith(suite_name):
+                    continue
+                if environment["meta"]["id"] in yielded:
+                    continue
+                yielded.append(environment["meta"]["id"])
+                yield environment
+            if status["status"] != "PENDING":
+                break
+        if status["status"] == "FAILURE":
+            raise EnvironmentProviderException(
+                status["error"], self.etos.config.get("task_id")
+            )
+
+    def start_sub_suites(self, suite):
+        """Start up all sub suites within a TERCC suite.
+
+        :param suite: TERCC suite to start up sub suites from.
+        :type suite: dict
+        """
+        suite_name = suite.get("name")
         self.etos.events.send_announcement_published(
             "[ESR] Starting tests.",
             "Starting test suites on all checked out IUTs.",
             "MINOR",
             {"CONTEXT": self.context},
         )
-        self.etos.config.set("nbr_of_suites", len(environment.get("suites", [])))
+        self.logger.info("Starting sub suites for %r", suite_name)
+        started = []
+        for environment in self._environments(suite_name):
+            started.append(environment)
 
-        executor = Executor(self.etos)
-        threads = []
-        for suite in environment.get("suites", []):
-            thread = threading.Thread(target=executor.run_tests, args=(suite,))
-            threads.append(thread)
-            thread.start()
-            time.sleep(5)
-        self.logger.info("Test suites triggered.")
-        for thread in threads:
-            thread.join()
-        self.logger.info("Test suites started.")
+            self.logger.info("Triggering sub suite %r", environment["data"]["name"])
+            self._run_etr(environment)
+            self.logger.info("%r Triggered", environment["data"]["name"])
+            time.sleep(1)
+        self.etos.config.set("nbr_of_suites", len(started))
+        self.logger.info("All %d sub suites for %r started", len(started), suite_name)
 
         self.etos.events.send_announcement_published(
             "[ESR] Waiting.",
@@ -84,26 +152,27 @@ class SuiteRunner:  # pylint:disable=too-few-public-methods
             {"CONTEXT": self.context},
         )
 
-        self.logger.info("Wait for test results.")
-        self.result_handler.wait_for_test_suite_finished()
+    def start_suite(self, suite):
+        """Send test suite events and launch test runners.
 
-    def run(self, environment):
-        """Run the suite runner.
-
-        :param environment: Environment in which to run the suite.
-        :type environment: dict
+        :param suite: Test suite to start.
+        :type suite: dict
         """
-        self.logger.info("Started.")
+        suite_name = suite.get("name")
+        self.logger.info("Starting %s.", suite_name)
 
         categories = ["Regression test suite"]
         if self.params.product:
             categories.append(self.params.product)
         test_suite_started = self.etos.events.send_test_suite_started(
-            environment.get("suite_name"),
+            suite_name,
             {"CONTEXT": self.context},
             categories=categories,
             types=["FUNCTIONAL"],
         )
+
+        # TODO: This will conflict whenever we run more than one suite which
+        # is not supported yet.
         self.etos.config.set("test_suite_started", test_suite_started.json)
 
         verdict = "INCONCLUSIVE"
@@ -111,7 +180,9 @@ class SuiteRunner:  # pylint:disable=too-few-public-methods
         description = ""
 
         try:
-            self._run_etr_and_wait(environment)
+            self.start_sub_suites(suite)
+            self.logger.info("Wait for test results.")
+            self.result_handler.wait_for_test_suite_finished()
             verdict, conclusion, description = self.result_handler.test_results()
             time.sleep(5)
         except Exception as exc:
@@ -128,4 +199,16 @@ class SuiteRunner:  # pylint:disable=too-few-public-methods
                     "description": description,
                 },
             )
+
+            # TODO: This should be released using the environment defined ID
+            # when that is supported.
+            task_id = self.etos.config.get("task_id")
+            self.logger.info("Release test environment.")
+            if task_id is not None:
+                self._release_environment(task_id)
         self.logger.info("Test suite finished.")
+
+    def start_suites_and_wait(self):
+        """Get environments and start all test suites."""
+        with ThreadPool() as pool:
+            pool.map(self.start_suite, self.params.test_suite)

@@ -1,4 +1,4 @@
-# Copyright 2020-2021 Axis Communications AB.
+# Copyright 2020-2022 Axis Communications AB.
 #
 # For a full list of individual contributors, please see the commit history.
 #
@@ -18,6 +18,7 @@ from .graphql_queries import (
     ACTIVITY_TRIGGERED,
     TEST_SUITE_STARTED,
     TEST_SUITE_FINISHED,
+    ENVIRONMENTS,
 )
 
 
@@ -101,5 +102,25 @@ def request_test_suite_finished(etos, test_suite_ids):
                 response, "testSuiteFinished"
             ):
                 yield test_suite_finished
+            return None  # StopIteration
+    return None  # StopIteration
+
+
+def request_environment_defined(etos, activity_id):
+    """Request environment defined from graphql.
+
+    :param etos: ETOS client instance.
+    :type etos: :obj:`etos_lib.etos.Etos`
+    :param activity_id: ID of activity in which the environment defined are sent
+    :type activity_id: str
+    :return: Iterator of environment defined graphql responses.
+    :rtype: iterator
+    """
+    for response in request(etos, ENVIRONMENTS % activity_id):
+        if response:
+            for _, environment in etos.graphql.search_for_nodes(
+                response, "environmentDefined"
+            ):
+                yield environment
             return None  # StopIteration
     return None  # StopIteration
