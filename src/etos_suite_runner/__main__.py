@@ -117,7 +117,7 @@ class ESR:  # pylint:disable=too-many-instance-attributes
                 self.params.set_status(response.get("status"), result.get("error"))
             else:
                 self.params.set_status(
-                    "FAILED",
+                    "FAILURE",
                     "Unknown Error: Did not receive an environment "
                     f"within {self.etos.debug.default_http_timeout}s",
                 )
