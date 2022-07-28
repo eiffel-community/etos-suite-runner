@@ -15,7 +15,6 @@
 # limitations under the License.
 """Graphql query handler module."""
 from .graphql_queries import (
-    ACTIVITY_TRIGGERED,
     TEST_SUITE_STARTED,
     TEST_SUITE_FINISHED,
     ENVIRONMENTS,
@@ -36,39 +35,17 @@ def request(etos, query):
     yield from wait_generator
 
 
-def request_activity(etos, suite_id):
-    """Request an activity event from graphql.
-
-    :param etos: ETOS client instance.
-    :type etos: :obj:`etos_lib.etos.Etos`
-    :param suite_id: ID of execution recipe triggering this activity.
-    :type suite_id: str
-    :return: Response from graphql or None
-    :rtype: dict or None
-    """
-    for response in request(etos, ACTIVITY_TRIGGERED % suite_id):
-        if response:
-            try:
-                _, activity = next(
-                    etos.graphql.search_for_nodes(response, "activityTriggered")
-                )
-            except StopIteration:
-                return None
-            return activity
-    return None
-
-
-def request_test_suite_started(etos, activity_id):
+def request_test_suite_started(etos, main_suite_id):
     """Request test suite started from graphql.
 
     :param etos: ETOS client instance.
     :type etos: :obj:`etos_lib.etos.Etos`
-    :param activity_id: ID of activity in which the test suites started
-    :type activity_id: str
+    :param main_suite_id: ID of test suite which caused the test suites started
+    :type main_suite_id: str
     :return: Iterator of test suite started graphql responses.
     :rtype: iterator
     """
-    for response in request(etos, TEST_SUITE_STARTED % activity_id):
+    for response in request(etos, TEST_SUITE_STARTED % main_suite_id):
         if response:
             for _, test_suite_started in etos.graphql.search_for_nodes(
                 response, "testSuiteStarted"

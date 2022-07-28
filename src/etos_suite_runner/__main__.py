@@ -21,6 +21,7 @@ import logging
 import traceback
 import signal
 import threading
+from uuid import uuid4
 
 from etos_lib import ETOS
 from etos_lib.logging.logger import FORMAT_CONFIG
@@ -60,13 +61,14 @@ class ESR:  # pylint:disable=too-many-instance-attributes
             int(os.getenv("ESR_WAIT_FOR_ENVIRONMENT_TIMEOUT")),
         )
 
-    def _request_environment(self):
+    def _request_environment(self, ids):
         """Request an environment from the environment provider.
 
         :return: Task ID and an error message.
         :rtype: tuple
         """
-        params = {"suite_id": self.params.tercc.meta.event_id}
+        params = {"suite_id": self.params.tercc.meta.event_id,
+                  "suite_runner_ids": ",".join(ids)}
         wait_generator = self.etos.http.retry(
             "POST", self.etos.debug.environment_provider, json=params
         )
@@ -135,10 +137,10 @@ class ESR:  # pylint:disable=too-many-instance-attributes
             if response:
                 break
 
-    def _reserve_workers(self):
+    def _reserve_workers(self, ids):
         """Reserve workers for test."""
         LOGGER.info("Request environment from environment provider")
-        task_id, msg = self._request_environment()
+        task_id, msg = self._request_environment(ids)
         if task_id is None:
             raise EnvironmentProviderException(msg, task_id)
         return task_id
@@ -158,10 +160,15 @@ class ESR:  # pylint:disable=too-many-instance-attributes
         )
         runner = SuiteRunner(self.params, self.etos, context)
 
+        ids = []
+        for suite in self.params.test_suite:
+            suite["test_suite_started_id"] = str(uuid4())
+            ids.append(suite["test_suite_started_id"])
+
         task_id = None
         try:
             LOGGER.info("Wait for test environment.")
-            task_id = self._reserve_workers()
+            task_id = self._reserve_workers(ids)
             self.etos.config.set("task_id", task_id)
             threading.Thread(
                 target=self._get_environment_status, args=(task_id,), daemon=True

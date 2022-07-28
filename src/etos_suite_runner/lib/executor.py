@@ -52,8 +52,8 @@ class Executor:  # pylint:disable=too-few-public-methods
     def run_tests(self, test_suite):
         """Run tests in jenkins.
 
-        :param test_file: Tests to execute.
-        :type test_file: dict
+        :param test_suite: Tests to execute.
+        :type test_suite: dict
         """
         executor = test_suite.get("executor")
         request = executor.get("request")

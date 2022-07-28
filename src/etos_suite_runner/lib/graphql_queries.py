@@ -14,23 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Graphql queries."""
-ACTIVITY_TRIGGERED = """
-{
-  activityTriggered(search: "{'links.type': 'CAUSE', 'links.target': '%s'}") {
-    edges {
-      node {
-        meta {
-          id
-        }
-      }
-    }
-  }
-}
-"""
-
 TEST_SUITE_STARTED = """
 {
-  testSuiteStarted(search:"{'links.type': 'CONTEXT', 'links.target': '%s'}") {
+  testSuiteStarted(search:"{'links.type': 'CAUSE', 'links.target': '%s'}") {
     edges {
       node {
         data {
