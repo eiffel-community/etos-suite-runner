@@ -21,6 +21,7 @@ import logging
 import traceback
 import signal
 import threading
+from uuid import uuid4
 
 from etos_lib import ETOS
 from etos_lib.logging.logger import FORMAT_CONFIG
@@ -69,10 +70,8 @@ class ESR:  # pylint:disable=too-many-instance-attributes
         :return: Task ID and an error message.
         :rtype: tuple
         """
-        params = {
-            "suite_id": self.params.tercc.meta.event_id,
-            "suite_runner_ids": ",".join(ids),
-        }
+        params = {"suite_id": self.params.tercc.meta.event_id,
+                  "suite_runner_ids": ",".join(ids)}
         wait_generator = self.etos.http.retry(
             "POST", self.etos.debug.environment_provider, json=params
         )
@@ -142,14 +141,7 @@ class ESR:  # pylint:disable=too-many-instance-attributes
                 break
 
     def _reserve_workers(self, ids):
-        """Reserve workers for test.
-
-        :param ids: Generated suite runner IDs used to correlate environments and the suite
-                    runners.
-        :type ids: list
-        :return: The environment provider task ID
-        :rtype: str
-        """
+        """Reserve workers for test."""
         LOGGER.info("Request environment from environment provider")
         task_id, msg = self._request_environment(ids)
         if task_id is None:
@@ -179,7 +171,7 @@ class ESR:  # pylint:disable=too-many-instance-attributes
         task_id = None
         try:
             LOGGER.info("Wait for test environment.")
-            task_id = self._reserve_workers()
+            task_id = self._reserve_workers(ids)
             self.etos.config.set("task_id", task_id)
             threading.Thread(
                 target=self._get_environment_status, args=(task_id,), daemon=True

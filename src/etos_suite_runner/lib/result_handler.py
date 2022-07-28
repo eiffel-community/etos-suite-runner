@@ -40,10 +40,7 @@ class ResultHandler:
     @property
     def has_started(self):
         """Whether or not test suites have started."""
-        return (
-            len(self.events.get("subSuiteStarted", []))
-            == self.expected_number_of_suites
-        )
+        return len(self.events.get("subSuiteStarted", [])) == self.expected_number_of_suites
 
     @property
     def has_finished(self):
@@ -105,22 +102,21 @@ class ResultHandler:
         :rtype: dict
         """
         self.logger.info("Requesting events from GraphQL")
-        self.logger.info(
-            "Expected number of suites: %r", self.expected_number_of_suites
-        )
+        self.logger.info("Expected number of suites: %r", self.expected_number_of_suites)
 
         events = {
             "subSuiteStarted": [],
             "subSuiteFinished": [],
         }
-        main_suite_id = self.test_suite_started["meta"]["id"]
-        self.logger.info("Main suite: %r", main_suite_id)
-        if (
-            len(self.events.get("subSuiteStarted", []))
-            != self.expected_number_of_suites
-        ):
+        self.logger.info("Main suite: %r", self.test_suite_started["meta"]["id"])
+        if len(self.events.get("subSuiteStarted", [])) != self.expected_number_of_suites:
             self.logger.info("Getting subSuiteStarted")
-            started = list(request_test_suite_started(self.etos, main_suite_id))
+            started = [
+                test_suite_started
+                for test_suite_started in request_test_suite_started(
+                    self.etos, self.test_suite_started["meta"]["id"]
+                )
+            ]
             if not started:
                 self.logger.info("No subSuitesStarted yet.")
                 self.events = events
@@ -133,10 +129,7 @@ class ResultHandler:
         started_ids = [
             test_suite_started["meta"]["id"] for test_suite_started in started
         ]
-        if (
-            len(self.events.get("subSuiteFinished", []))
-            != self.expected_number_of_suites
-        ):
+        if len(self.events.get("subSuiteFinished", [])) != self.expected_number_of_suites:
             self.logger.info("Getting subSuiteFinished")
             finished = list(request_test_suite_finished(self.etos, started_ids))
             if not finished:
@@ -154,6 +147,7 @@ class ResultHandler:
         :param expected: Expected number of test suites.
         :type expected: int
         """
+        tercc = self.etos.config.get("tercc")
         self.expected_number_of_suites = expected
 
         timeout = time.time() + self.etos.debug.default_test_result_timeout
@@ -161,7 +155,7 @@ class ResultHandler:
         with DuplicateFilter(self.logger):
             while time.time() < timeout:
                 time.sleep(10)
-                self.get_events()
+                self.get_events(tercc.meta.event_id)
                 self.logger.info(
                     "Expected number of test suites: %r, currently active: %r",
                     self.expected_number_of_suites,

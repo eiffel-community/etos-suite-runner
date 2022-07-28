@@ -20,25 +20,6 @@ TEST_SUITE_STARTED = """
     edges {
       node {
         data {
-          testSuiteCategories {
-            type
-          }
-        }
-        meta {
-          id
-        }
-      }
-    }
-  }
-}
-"""
-
-TEST_SUITE_FINISHED = """
-{
-  testSuiteFinished(search: "%s") {
-    edges {
-      node {
-        data {
           testSuiteOutcome {
             verdict
           }

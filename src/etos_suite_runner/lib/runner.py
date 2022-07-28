@@ -16,7 +16,11 @@
 """ETOS suite runner executor."""
 import logging
 import time
+from threading import Lock
 from multiprocessing.pool import ThreadPool
+
+from etos_lib.logging.logger import FORMAT_CONFIG
+from eiffellib.events.eiffel_test_suite_started_event import EiffelTestSuiteStartedEvent
 
 from etos_suite_runner.lib.result_handler import ResultHandler
 from etos_suite_runner.lib.executor import Executor
@@ -34,8 +38,6 @@ class SuiteRunner:  # pylint:disable=too-few-public-methods
     """
 
     lock = Lock()
-    environment_provider_done = False
-    error = False
     logger = logging.getLogger("ESR - Runner")
 
     def __init__(self, params, etos, context):
@@ -107,13 +109,16 @@ class SuiteRunner:  # pylint:disable=too-few-public-methods
             status = self.params.environment_status
             self.logger.info(status)
             for environment in request_environment_defined(self.etos, self.context):
+                self.logger.info(environment)
+                # TODO: Using the name here is volatile.
                 if not environment["data"]["name"].startswith(suite_name):
                     continue
                 if environment["meta"]["id"] in yielded:
                     continue
                 yielded.append(environment["meta"]["id"])
                 yield environment
-            if status["status"] != "PENDING":
+            # We must have found at least one environment.
+            if status["status"] != "PENDING" and len(yielded) > 0:
                 break
         if status["status"] == "FAILURE":
             raise EnvironmentProviderException(
@@ -142,7 +147,6 @@ class SuiteRunner:  # pylint:disable=too-few-public-methods
             self._run_etr(environment)
             self.logger.info("%r Triggered", environment["data"]["name"])
             time.sleep(1)
-        self.etos.config.set("nbr_of_suites", len(started))
         self.logger.info("All %d sub suites for %r started", len(started), suite_name)
 
         self.etos.events.send_announcement_published(
@@ -159,22 +163,21 @@ class SuiteRunner:  # pylint:disable=too-few-public-methods
         :param suite: Test suite to start.
         :type suite: dict
         """
+        FORMAT_CONFIG.identifier = self.params.tercc.meta.event_id
         suite_name = suite.get("name")
         self.logger.info("Starting %s.", suite_name)
 
         categories = ["Regression test suite"]
         if self.params.product:
             categories.append(self.params.product)
-        test_suite_started = self.etos.events.send_test_suite_started(
-            suite_name,
-            {"CONTEXT": self.context},
-            categories=categories,
-            types=["FUNCTIONAL"],
-        )
 
-        # TODO: This will conflict whenever we run more than one suite which
-        # is not supported yet.
-        self.etos.config.set("test_suite_started", test_suite_started.json)
+        test_suite_started = EiffelTestSuiteStartedEvent()
+
+        # This ID has been stored in Environment so that the ETR know which test suite to link to.
+        test_suite_started.meta.event_id = suite.get("test_suite_started_id")
+        data = {"name": suite_name, "categories": categories, "types": ["FUNCTIONAL"]}
+        links = {"CONTEXT": self.context}
+        self.etos.events.send(test_suite_started, links, data)
 
         verdict = "INCONCLUSIVE"
         conclusion = "INCONCLUSIVE"
@@ -182,10 +185,10 @@ class SuiteRunner:  # pylint:disable=too-few-public-methods
 
         result_handler = ResultHandler(self.etos, test_suite_started)
         try:
-            self.start_sub_suites(suite)
+            started = self.start_sub_suites(suite)
             self.logger.info("Wait for test results.")
-            self.result_handler.wait_for_test_suite_finished()
-            verdict, conclusion, description = self.result_handler.test_results()
+            result_handler.wait_for_test_suite_finished(len(started))
+            verdict, conclusion, description = result_handler.test_results()
             time.sleep(5)
         except Exception as exc:
             conclusion = "FAILED"
