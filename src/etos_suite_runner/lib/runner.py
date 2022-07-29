@@ -16,7 +16,7 @@
 """ETOS suite runner executor."""
 import logging
 import time
-from threading import Lock
+from threading import Lock, Thread
 from multiprocessing.pool import ThreadPool
 
 from etos_lib.logging.logger import FORMAT_CONFIG
@@ -38,6 +38,8 @@ class SuiteRunner:  # pylint:disable=too-few-public-methods
     """
 
     lock = Lock()
+    environment_provider_done = False
+    error = False
     logger = logging.getLogger("ESR - Runner")
 
     def __init__(self, params, etos, context):
@@ -53,6 +55,7 @@ class SuiteRunner:  # pylint:disable=too-few-public-methods
         self.params = params
         self.etos = etos
         self.context = context
+        self.sub_suites = {}
 
     def _release_environment(self, task_id):
         """Release an environment from the environment provider.
@@ -73,6 +76,55 @@ class SuiteRunner:  # pylint:disable=too-few-public-methods
         :param environment: Environment which to execute in.
         :type environment: dict
         """
+        executor = Executor(self.etos)
+        executor.run_tests(environment)
+
+    def _environments(self):
+        """Get environments for all test suites in this ETOS run."""
+        FORMAT_CONFIG.identifier = self.params.tercc.meta.event_id
+        downloaded = []
+        status = {
+            "status": "FAILURE",
+            "error": "Couldn't collect any error information",
+        }
+        timeout = time.time() + self.etos.config.get("WAIT_FOR_ENVIRONMENT_TIMEOUT")
+        while time.time() < timeout:
+            status = self.params.environment_status
+            self.logger.info(status)
+            for environment in request_environment_defined(self.etos, self.context):
+                if environment["meta"]["id"] in downloaded:
+                    continue
+                suite = self._download_sub_suite(environment)
+                if self.error:
+                    break
+                downloaded.append(environment["meta"]["id"])
+                if suite is None:  # Not a real sub suite environment defined event.
+                    continue
+                with self.lock:
+                    self.sub_suites.setdefault(suite["test_suite_started_id"], [])
+                    self.sub_suites[suite["test_suite_started_id"]].append(suite)
+            # We must have found at least one environment for each test suite.
+            if status["status"] != "PENDING" and len(downloaded) >= len(
+                self.params.test_suite
+            ):
+                self.environment_provider_done = True
+                break
+            time.sleep(5)
+        if status["status"] == "FAILURE":
+            self.error = EnvironmentProviderException(
+                status["error"], self.etos.config.get("task_id")
+            )
+
+    def _download_sub_suite(self, environment):
+        """Download a sub suite from an EnvironmentDefined event.
+
+        :param environment: Environment defined event to download from.
+        :type environment: dict
+        :return: Downloaded sub suite information.
+        :rtype: dict
+        """
+        if environment["data"].get("uri") is None:
+            return None
         uri = environment["data"]["uri"]
         json_header = {"Accept": "application/json"}
         json_response = self.etos.http.wait_for_request(
@@ -83,46 +135,28 @@ class SuiteRunner:  # pylint:disable=too-few-public-methods
         for suite in json_response:
             break
         else:
-            raise Exception("Could not download sub suite instructions")
+            self.error = Exception("Could not download sub suite instructions")
+        return suite
 
-        executor = Executor(self.etos)
-        executor.run_tests(suite)
+    def _sub_suites(self, main_suite_id):
+        """Get all sub suites that correlates with ID.
 
-    def _environments(self, suite_name):
-        """Get environments for a specific test suite.
-
-        :param suite_name: Since environment defined events have a name starting with 'suite_name'
-                           we will use this as a part of getting the environments.
-        :type suite_name: str
-        :return: Test suite environments.
-        :rtype: iterator
+        :param main_suite_id: Main suite ID to correlate sub suites to.
+        :type main_suite_id: str
+        :return: Each correlated sub suite.
+        :rtype: Iterator
         """
-        yielded = []
-        status = {
-            "status": "FAILURE",
-            "error": "Couldn't collect any error information",
-        }
-        timeout = time.time() + self.etos.config.get("WAIT_FOR_ENVIRONMENT_TIMEOUT")
-        while time.time() < timeout:
+        while not self.error:
+            downloaded_all = self.environment_provider_done
             time.sleep(1)
-            status = self.params.environment_status
-            self.logger.info(status)
-            for environment in request_environment_defined(self.etos, self.context):
-                self.logger.info(environment)
-                # TODO: Using the name here is volatile.
-                if not environment["data"]["name"].startswith(suite_name):
-                    continue
-                if environment["meta"]["id"] in yielded:
-                    continue
-                yielded.append(environment["meta"]["id"])
-                yield environment
-            # We must have found at least one environment.
-            if status["status"] != "PENDING" and len(yielded) > 0:
+            with self.lock:
+                sub_suites = self.sub_suites.get(main_suite_id, []).copy()
+            for sub_suite in sub_suites:
+                with self.lock:
+                    self.sub_suites[main_suite_id].remove(sub_suite)
+                yield sub_suite
+            if downloaded_all:
                 break
-        if status["status"] == "FAILURE":
-            raise EnvironmentProviderException(
-                status["error"], self.etos.config.get("task_id")
-            )
 
     def start_sub_suites(self, suite):
         """Start up all sub suites within a TERCC suite.
@@ -139,12 +173,12 @@ class SuiteRunner:  # pylint:disable=too-few-public-methods
         )
         self.logger.info("Starting sub suites for %r", suite_name)
         started = []
-        for environment in self._environments(suite_name):
-            started.append(environment)
+        for sub_suite in self._sub_suites(suite["test_suite_started_id"]):
+            started.append(sub_suite)
 
-            self.logger.info("Triggering sub suite %r", environment["data"]["name"])
-            self._run_etr(environment)
-            self.logger.info("%r Triggered", environment["data"]["name"])
+            self.logger.info("Triggering sub suite %r", sub_suite["name"])
+            self._run_etr(sub_suite)
+            self.logger.info("%r Triggered", sub_suite["name"])
             time.sleep(1)
         self.logger.info("All %d sub suites for %r started", len(started), suite_name)
 
@@ -203,16 +237,19 @@ class SuiteRunner:  # pylint:disable=too-few-public-methods
                     "description": description,
                 },
             )
-
-            # TODO: This should be released using the environment defined ID
-            # when that is supported.
-            task_id = self.etos.config.get("task_id")
-            self.logger.info("Release test environment.")
-            if task_id is not None:
-                self._release_environment(task_id)
+            # TODO: Add releasing of environment defined IDs when that is supported
         self.logger.info("Test suite finished.")
 
     def start_suites_and_wait(self):
         """Get environments and start all test suites."""
-        with ThreadPool() as pool:
-            pool.map(self.start_suite, self.params.test_suite)
+        Thread(target=self._environments, daemon=True).start()
+        try:
+            with ThreadPool() as pool:
+                pool.map(self.start_suite, self.params.test_suite)
+            if self.error:
+                raise self.error
+        finally:
+            task_id = self.etos.config.get("task_id")
+            self.logger.info("Release test environment.")
+            if task_id is not None:
+                self._release_environment(task_id)
