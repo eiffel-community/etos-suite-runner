@@ -40,7 +40,7 @@ class DuplicateFilter:
         :return: Whether or not to filter.
         :rtype: bool
         """
-        msg = f"{record.msg}{record.args}"
+        msg = "%s%s" % (record.msg, record.args)
         is_duplicate = msg in self.msgs
         if not is_duplicate:
             self.msgs.append(msg)
