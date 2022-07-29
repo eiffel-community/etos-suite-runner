@@ -70,8 +70,10 @@ class ESR:  # pylint:disable=too-many-instance-attributes
         :return: Task ID and an error message.
         :rtype: tuple
         """
-        params = {"suite_id": self.params.tercc.meta.event_id,
-                  "suite_runner_ids": ",".join(ids)}
+        params = {
+            "suite_id": self.params.tercc.meta.event_id,
+            "suite_runner_ids": ",".join(ids),
+        }
         wait_generator = self.etos.http.retry(
             "POST", self.etos.debug.environment_provider, json=params
         )

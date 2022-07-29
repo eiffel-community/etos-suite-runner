@@ -123,18 +123,19 @@ class ESRParameters:
         :return: Batches.
         :rtype: list
         """
-        if self.__test_suite is None:
-            tercc = self.tercc.json
-            batch_uri = tercc.get("data", {}).get("batchesUri")
-            json_header = {"Accept": "application/json"}
-            json_response = self.etos.http.wait_for_request(
-                batch_uri,
-                headers=json_header,
-            )
-            response = {}
-            for response in json_response:
-                break
-            self.__test_suite = response
+        with self.lock:
+            if self.__test_suite is None:
+                tercc = self.tercc.json
+                batch_uri = tercc.get("data", {}).get("batchesUri")
+                json_header = {"Accept": "application/json"}
+                json_response = self.etos.http.wait_for_request(
+                    batch_uri,
+                    headers=json_header,
+                )
+                response = {}
+                for response in json_response:
+                    break
+                self.__test_suite = response
         return self.__test_suite if self.__test_suite else []
 
     @property
