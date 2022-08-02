@@ -184,15 +184,18 @@ class ESRParameters:
                 with self.lock:
                     self.__environments.setdefault(suite["test_suite_started_id"], [])
                     self.__environments[suite["test_suite_started_id"]].append(suite)
-            # We must have found at least one environment for each test suite.
+            if status["status"] == "FAILURE":
+                break
             if status["status"] != "PENDING" and len(downloaded) >= len(self.test_suite):
+                # We must have found at least one environment for each test suite.
                 self.environment_provider_done = True
                 break
             time.sleep(5)
         if status["status"] == "FAILURE":
-            self.error = EnvironmentProviderException(
-                status["error"], self.etos.config.get("task_id")
-            )
+            with self.lock:
+                self.error = EnvironmentProviderException(
+                    status["error"], self.etos.config.get("task_id")
+                )
 
     def _download_sub_suite(self, environment):
         """Download a sub suite from an EnvironmentDefined event.
@@ -223,13 +226,16 @@ class ESRParameters:
         :param test_suite_started_id: The ID to correlate environments with.
         :type test_suite_started_id: str
         """
+        found = 0
         while not self.error:
+            time.sleep(1)
             finished = self.environment_provider_done
             with self.lock:
                 environments = self.__environments.get(test_suite_started_id, []).copy()
             for environment in environments:
                 with self.lock:
                     self.__environments[test_suite_started_id].remove(environment)
+                found += 1
                 yield environment
-            if finished:
+            if finished and found > 0:
                 break

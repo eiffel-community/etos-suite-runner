@@ -116,6 +116,7 @@ class TestSuite:
     """Handle the starting and waiting for test suites in ETOS."""
 
     test_suite_started = None
+    started = False
     lock = threading.Lock()
 
     def __init__(self, etos, params, suite):
@@ -150,7 +151,7 @@ class TestSuite:
         :type body: str
         """
         self.etos.events.send_announcement_published(
-            f"[ESR] {header}.",
+            f"[ESR] {header}",
             body,
             "MINOR",
             {"CONTEXT": self.etos.config.get("context")},
@@ -179,28 +180,43 @@ class TestSuite:
         self._announce("Starting tests", f"Starting up sub suites for '{self.suite.get('name')}'")
 
         self.test_suite_started = self._send_test_suite_started()
-
-        self.logger.info("Assigning test suite started events to sub suites")
-        assigner = threading.Thread(target=self._assign_test_suite_started)
-        assigner.start()
+        self.logger.info("Test suite started %r", self.test_suite_started.meta.event_id)
 
         self.logger.info("Starting sub suites")
         threads = []
-        for sub_suite_definition in self.sub_suite_definitions:
-            sub_suite = SubSuite(self.etos, sub_suite_definition)
+        assigner = None
+        try:
+            for sub_suite_definition in self.sub_suite_definitions:
+                sub_suite = SubSuite(self.etos, sub_suite_definition)
+                with self.lock:
+                    self.sub_suites.append(sub_suite)
+                thread = threading.Thread(
+                    target=sub_suite.start, args=(self.params.tercc.meta.event_id,)
+                )
+                threads.append(thread)
+                thread.start()
+
+            self.logger.info("Assigning test suite started events to sub suites")
+            assigner = threading.Thread(target=self._assign_test_suite_started)
+            assigner.start()
+
+            if self.params.error:
+                self.logger.error("Environment provider error: %r", self.params.error)
+                self._announce(
+                    "Error",
+                    f"Environment provider failed to provide an environment: '{self.params.error}'"
+                    "\nWill finish already started sub suites\n",
+                )
+                return
             with self.lock:
-                self.sub_suites.append(sub_suite)
-            thread = threading.Thread(
-                target=sub_suite.start, args=(self.params.tercc.meta.event_id,)
-            )
-            threads.append(thread)
-            thread.start()
-        with self.lock:
-            number_of_suites = len(self.sub_suites)
-        self.logger.info("All %d sub suites triggered", number_of_suites)
-        assigner.join()
-        for thread in threads:
-            thread.join()
+                number_of_suites = len(self.sub_suites)
+            self.logger.info("All %d sub suites triggered", number_of_suites)
+            self.started = True
+        finally:
+            if assigner is not None:
+                assigner.join()
+            for thread in threads:
+                thread.join()
         self.logger.info("All %d sub suites finished", number_of_suites)
 
     def _assign_test_suite_started(self):
@@ -213,6 +229,9 @@ class TestSuite:
             suites = []
             with self.lock:
                 sub_suites = self.sub_suites.copy()
+            if len(sub_suites) == 0 and self.params.error:
+                self.logger.info("Environment provider error")
+                return
             if len(sub_suites) == 0:
                 self.logger.info("No sub suites started just yet")
                 continue
@@ -235,7 +254,7 @@ class TestSuite:
                             "No correlation for %r", test_suite_started["data"]["name"]
                         )
             if len(suites) == len(sub_suites):
-                self.logger.info("All %d sub suites started", len(self.sub_suites))
+                self.logger.info("All %d sub suites started", len(sub_suites))
                 break
 
     def release_all(self):
@@ -277,7 +296,13 @@ class TestSuite:
         conclusion = "SUCCESSFUL"
         description = ""
 
-        if not self.all_finished:
+        if not self.started:
+            verdict = "INCONCLUSIVE"
+            conclusion = "FAILED"
+            description = (
+                f"No sub suites started at all for {self.test_suite_started.meta.event_id}."
+            )
+        elif not self.all_finished:
             verdict = "INCONCLUSIVE"
             conclusion = "FAILED"
             description = "Did not receive test results from sub suites."
