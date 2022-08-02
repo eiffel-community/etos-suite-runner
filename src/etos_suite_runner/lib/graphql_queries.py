@@ -20,9 +20,7 @@ TEST_SUITE_STARTED = """
     edges {
       node {
         data {
-          testSuiteOutcome {
-            verdict
-          }
+          name
         }
       }
     }
@@ -30,9 +28,10 @@ TEST_SUITE_STARTED = """
 }
 """
 
-ENVIRONMENTS = """
+
+TEST_SUITE_FINISHED = """
 {
-  environmentDefined(search:"{'links.type': 'CONTEXT', 'links.target': '%s'}") {
+  testSuiteFinished(search: "{'links.target': '%s', 'links.type': 'TEST_SUITE_EXECUTION'}" last: 1) {
     edges {
       node {
         data {
@@ -47,6 +46,7 @@ ENVIRONMENTS = """
   }
 }
 """
+
 
 ENVIRONMENTS = """
 {
