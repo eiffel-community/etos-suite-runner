@@ -261,6 +261,7 @@ def main():
             termination_log.write(traceback.format_exc())
         raise
     finally:
+        esr.etos.publisher.wait_for_unpublished_events()
         esr.etos.publisher.stop()
     LOGGER.info("ESR Finished Executing.")
 

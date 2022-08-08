@@ -69,7 +69,7 @@ class SubSuite:
         :rtype: dict
         """
         if self.finished:
-            return self.test_suite_finished.get("testSuiteOutcome", {})
+            return self.test_suite_finished.get("data", {}).get("testSuiteOutcome", {})
         return {}
 
     def start(self, identifier):
