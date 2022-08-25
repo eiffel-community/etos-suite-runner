@@ -155,7 +155,7 @@ class ESR:  # pylint:disable=too-many-instance-attributes
         return task_id
 
     def run_suites(self, triggered):
-        """Trigger an activity and starts the actual test runner.
+        """Start up a suite runner handling multiple suites that execute within test runners.
 
         Will only start the test activity if there's a 'slot' available.
 
