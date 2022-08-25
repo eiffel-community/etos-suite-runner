@@ -64,6 +64,9 @@ class ESR:  # pylint:disable=too-many-instance-attributes
     def _request_environment(self, ids):
         """Request an environment from the environment provider.
 
+        :param ids: Suite runner IDs that were generated here in order to correlate
+                    environments and the suite runners.
+        :type ids: list
         :return: Task ID and an error message.
         :rtype: tuple
         """
@@ -140,7 +143,14 @@ class ESR:  # pylint:disable=too-many-instance-attributes
                 break
 
     def _reserve_workers(self, ids):
-        """Reserve workers for test."""
+        """Reserve workers for test.
+
+        :param ids: Suite runner IDs that were generated here in order to correlate
+                    environments and the suite runners.
+        :type ids: list
+        :return: The environment provider task ID
+        :rtype: str
+        """
         LOGGER.info("Request environment from environment provider")
         task_id, msg = self._request_environment(ids)
         if task_id is None:
