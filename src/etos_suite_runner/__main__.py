@@ -64,8 +64,8 @@ class ESR:  # pylint:disable=too-many-instance-attributes
     def _request_environment(self, ids):
         """Request an environment from the environment provider.
 
-        :param ids: Suite runner IDs that were generated here in order to correlate
-                    environments and the suite runners.
+        :param ids: Generated suite runner IDs used to correlate environments and the suite
+                    runners.
         :type ids: list
         :return: Task ID and an error message.
         :rtype: tuple
@@ -120,14 +120,11 @@ class ESR:  # pylint:disable=too-many-instance-attributes
             if response and result:
                 break
         else:
-            if response and result:
-                self.params.set_status(response.get("status"), result.get("error"))
-            else:
-                self.params.set_status(
-                    "FAILURE",
-                    "Unknown Error: Did not receive an environment "
-                    f"within {self.etos.debug.default_http_timeout}s",
-                )
+            self.params.set_status(
+                "FAILURE",
+                "Unknown Error: Did not receive an environment "
+                f"within {self.etos.debug.default_http_timeout}s",
+            )
 
     def _release_environment(self, task_id):
         """Release an environment from the environment provider.
@@ -145,8 +142,8 @@ class ESR:  # pylint:disable=too-many-instance-attributes
     def _reserve_workers(self, ids):
         """Reserve workers for test.
 
-        :param ids: Suite runner IDs that were generated here in order to correlate
-                    environments and the suite runners.
+        :param ids: Generated suite runner IDs used to correlate environments and the suite
+                    runners.
         :type ids: list
         :return: The environment provider task ID
         :rtype: str
