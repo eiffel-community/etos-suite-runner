@@ -114,14 +114,11 @@ class ESR:  # pylint:disable=too-many-instance-attributes
             if response and result:
                 break
         else:
-            if response and result:
-                self.params.set_status(response.get("status"), result.get("error"))
-            else:
-                self.params.set_status(
-                    "FAILURE",
-                    "Unknown Error: Did not receive an environment "
-                    f"within {self.etos.debug.default_http_timeout}s",
-                )
+            self.params.set_status(
+                "FAILURE",
+                "Unknown Error: Did not receive an environment "
+                f"within {self.etos.debug.default_http_timeout}s",
+            )
 
     def _release_environment(self, task_id):
         """Release an environment from the environment provider.
@@ -137,7 +134,14 @@ class ESR:  # pylint:disable=too-many-instance-attributes
                 break
 
     def _reserve_workers(self, ids):
-        """Reserve workers for test."""
+        """Reserve workers for test.
+
+        :param ids: Generated suite runner IDs used to correlate environments and the suite
+                    runners.
+        :type ids: list
+        :return: The environment provider task ID
+        :rtype: str
+        """
         LOGGER.info("Request environment from environment provider")
         task_id, msg = self._request_environment(ids)
         if task_id is None:
@@ -145,7 +149,7 @@ class ESR:  # pylint:disable=too-many-instance-attributes
         return task_id
 
     def run_suites(self, triggered):
-        """Trigger an activity and starts the actual test runner.
+        """Start up a suite runner handling multiple suites that execute within test runners.
 
         Will only start the test activity if there's a 'slot' available.
 

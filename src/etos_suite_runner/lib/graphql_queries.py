@@ -35,8 +35,9 @@ TEST_SUITE_FINISHED = """
     edges {
       node {
         data {
-          name
-          uri
+          testSuiteOutcome {
+            verdict
+          }
         }
         meta {
           id
