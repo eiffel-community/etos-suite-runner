@@ -171,7 +171,11 @@ class TestSuite:
 
         # This ID has been stored in Environment so that the ETR know which test suite to link to.
         test_suite_started.meta.event_id = self.suite.get("test_suite_started_id")
-        data = {"name": self.suite.get("name"), "categories": categories, "types": ["FUNCTIONAL"]}
+        data = {
+            "name": self.suite.get("name"),
+            "categories": categories,
+            "types": ["FUNCTIONAL"],
+        }
         links = {"CONTEXT": self.etos.config.get("context")}
         return self.etos.events.send(test_suite_started, links, data)
 
@@ -226,6 +230,7 @@ class TestSuite:
         FORMAT_CONFIG.identifier = self.params.tercc.meta.event_id
         timeout = time.time() + self.etos.debug.default_test_result_timeout
         self.logger.info("Assigning test suite started to sub suites")
+        correlated = 0
         while time.time() < timeout:
             time.sleep(1)
             suites = []
@@ -243,19 +248,25 @@ class TestSuite:
                 self.logger.info("Found test suite started")
                 suites.append(test_suite_started)
                 for sub_suite in sub_suites:
+                    self.logger.info("SubSuite        : %s", sub_suite.name)
+                    self.logger.info("TestSuiteStarted: %s", test_suite_started["data"]["name"])
                     if sub_suite.started:
                         continue
                     # Using name to match here is safe because we're only searching for
                     # sub suites that are connected to this test_suite_started ID and the
                     # "_SubSuite_\d" part of the name is set by ETOS and not humans.
                     if sub_suite.name == test_suite_started["data"]["name"]:
+                        correlated += 1
                         self.logger.info("Test suite started correlates to %r", sub_suite.name)
                         sub_suite.test_suite_started = test_suite_started
                     else:
                         self.logger.info(
                             "No correlation for %r", test_suite_started["data"]["name"]
                         )
-            if len(suites) == len(sub_suites):
+            if correlated == 0:
+                self.logger.info("Found no correlations yet")
+                continue
+            if len(suites) == len(sub_suites) and len(sub_suites) == correlated:
                 self.logger.info("All %d sub suites started", len(sub_suites))
                 break
 
