@@ -56,6 +56,7 @@ class SubSuite:
                 # "_SubSuite_\d" part of the name is set by ETOS and not humans.
                 if self.environment.get("name") == test_suite_started["data"]["name"]:
                     self.test_suite_started = test_suite_started
+                    break
         return bool(self.test_suite_started)
 
     def request_finished_event(self):
