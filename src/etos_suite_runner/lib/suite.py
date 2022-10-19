@@ -210,8 +210,6 @@ class TestSuite:
                 thread.start()
             self.logger.info("All sub suite environments received and sub suites triggered")
 
-            self.logger.info("Assigning test suite started events to sub suites")
-
             if self.params.error:
                 self.logger.error("Environment provider error: %r", self.params.error)
                 self._announce(
