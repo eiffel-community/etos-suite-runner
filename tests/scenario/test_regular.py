@@ -184,7 +184,7 @@ class TestRegularScenario(TestCase):
             esr = ESR()
             try:
                 esr.run()
-                finshed = None
+                finished = None
                 for event in Debug().events_published.copy():
                     if event.meta.type == "EiffelTestSuiteFinishedEvent":
                         finished = event
