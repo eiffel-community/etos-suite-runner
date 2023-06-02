@@ -15,8 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ETOS suite runner log listener and webserver."""
-import asyncio
-import json
 import pathlib
 import sys
 import logging
@@ -24,8 +22,8 @@ import signal
 import threading
 
 import uvicorn
-from fastapi import FastAPI, Request
-from sse_starlette.sse import EventSourceResponse
+from fastapi import FastAPI
+from fastapi.responses import FileResponse
 
 from .listener import Listener
 
@@ -36,41 +34,20 @@ logging.getLogger("pika").setLevel(logging.WARNING)
 
 APP = FastAPI()
 LOCK = threading.Lock()
-MESSAGES = []
+LOG_FILE = pathlib.Path("./log")
+LOG_FILE.touch()
 
 
 @APP.get("/log")
-async def logs(request: Request):
-    """Endpoint for fetching logs from file and serving them as server sent events."""
-    _file = pathlib.Path("./log")
+async def logs():
+    """Endpoint serving a log file."""
     with LOCK:
-        messages = MESSAGES.copy()
-
-    async def event_generator():
-        for i, line in enumerate(messages):
-            yield {
-                "id": i + 1,
-                "event": "message",
-                "data": json.dumps(line),
-            }
-        index = len(messages)
-        while True:
-            if await request.is_disconnected():
-                break
-            try:
-                yield {"id": index + 1, "event": "message", "data": json.dumps(MESSAGES[index + 1])}
-                index += 1
-            except IndexError:
-                await asyncio.sleep(1)
-
-    return EventSourceResponse(
-        event_generator(),
-    )
+        return FileResponse(LOG_FILE)
 
 
 def main():
     """Entry point allowing external calls."""
-    listener = Listener(LOCK, MESSAGES)
+    listener = Listener(LOCK, LOG_FILE)
 
     @APP.on_event("shutdown")
     def stop(*_):

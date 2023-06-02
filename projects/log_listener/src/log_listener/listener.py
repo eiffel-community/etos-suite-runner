@@ -17,6 +17,8 @@
 import os
 import threading
 import json
+import logging
+import pathlib
 from typing import Optional
 from eiffellib.events import EiffelTestExecutionRecipeCollectionCreatedEvent
 from .log_subscriber import LogSubscriber
@@ -27,13 +29,14 @@ class Listener(threading.Thread):
 
     __tercc = None
     rabbitmq = None
+    logger = logging.getLogger(__name__)
 
-    def __init__(self, lock: threading.Lock, messages: list):
+    def __init__(self, lock: threading.Lock, log_file: pathlib.Path):
         """Initialize ETOS library."""
         super().__init__()
         self.identifier = self.tercc.meta.event_id
         self.lock = lock
-        self.messages = messages
+        self.log_file = log_file
 
     @property
     def tercc(self) -> EiffelTestExecutionRecipeCollectionCreatedEvent:
@@ -46,8 +49,10 @@ class Listener(threading.Thread):
 
     def new_message(self, message: dict, _: Optional[str] = None) -> None:
         """Handle new log messages from ETOS."""
+        self.logger.info(message)
         with self.lock:
-            self.messages.append(message)
+            with self.log_file.open("a") as log_file:
+                log_file.write(f"{json.dumps(message)}\n")
 
     def __queue_params(self) -> Optional[dict]:
         """Get queue parameters from environment."""
