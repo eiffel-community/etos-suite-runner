@@ -47,7 +47,7 @@ jobs:
       - name: Run hadolint for Log listener
         uses: hadolint/hadolint-action@master
         with:
-          dockerfile: Dockerfile.listener
+          dockerfile: Dockerfile.log_listener
 
   build-docker-images:
     # The type of runner that the job will run on
