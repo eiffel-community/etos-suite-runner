@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Create a queue for log listener."""
-import os
-import json
 import time
 from threading import Lock
 from pathlib import Path
