@@ -53,6 +53,7 @@ def main():
     def stop(*_):
         """Stop the listener."""
         if listener.is_alive():
+            LOCK.acquire(timeout=300)
             listener.clear()
             listener.stop()
             listener.join()
