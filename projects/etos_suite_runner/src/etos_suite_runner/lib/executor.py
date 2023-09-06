@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Executor handler module."""
+import os
 import logging
+from cryptography.fernet import Fernet
 from requests.auth import HTTPBasicAuth, HTTPDigestAuth
 
 
@@ -33,7 +35,23 @@ class Executor:  # pylint:disable=too-few-public-methods
         self.etos.config.set("build_urls", [])
 
     @staticmethod
-    def __auth(username, password, type="basic"):  # pylint:disable=redefined-builtin
+    def __decrypt(password):
+        """Decrypt a password using an encryption key.
+
+        :param password: Password to decrypt.
+        :type password: str
+        :return: Decrypted password
+        :rtype: str
+        """
+        key = os.getenv("ETOS_ENCRYPTION_KEY")
+        if key is None:
+            return password
+        password_value = password.get("$decrypt", {}).get("value")
+        if password_value is None:
+            return password
+        return Fernet(key).decrypt(password_value).decode()
+
+    def __auth(self, username, password, type="basic"):  # pylint:disable=redefined-builtin
         """Create an authentication for HTTP request.
 
         :param username: Username to authenticate.
@@ -45,6 +63,7 @@ class Executor:  # pylint:disable=too-few-public-methods
         :return: Authentication method.
         :rtype: :obj:`requests.auth`
         """
+        password = self.__decrypt(password)
         if type.lower() == "basic":
             return HTTPBasicAuth(username, password)
         return HTTPDigestAuth(username, password)
