@@ -34,20 +34,21 @@ class Executor:  # pylint:disable=too-few-public-methods
         self.etos = etos
         self.etos.config.set("build_urls", [])
 
-    @staticmethod
-    def __decrypt(password):
+    def __decrypt(self, password):
         """Decrypt a password using an encryption key.
 
         :param password: Password to decrypt.
-        :type password: str
+        :type password: str or dict
         :return: Decrypted password
         :rtype: str
         """
         key = os.getenv("ETOS_ENCRYPTION_KEY")
         if key is None:
+            self.logger.debug("No encryption key available, won't decrypt password")
             return password
         password_value = password.get("$decrypt", {}).get("value")
         if password_value is None:
+            self.logger.debug("No '$decrypt' JSONTas struct for password, won't decrypt password")
             return password
         return Fernet(key).decrypt(password_value).decode()
 
