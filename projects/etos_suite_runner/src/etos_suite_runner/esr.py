@@ -22,7 +22,7 @@ import threading
 import traceback
 from uuid import uuid4
 
-from eiffellib.events import EiffelActivityTriggeredEvent
+from eiffellib.events import EiffelActivityTriggeredEvent, EiffelActivityCanceledEvent
 from environment_provider.environment_provider import EnvironmentProvider
 from environment_provider_api.backend.environment import release_full_environment
 from etos_lib import ETOS
@@ -216,4 +216,6 @@ class ESR:  # pylint:disable=too-many-instance-attributes
     def graceful_exit(self, *_) -> None:
         """Attempt to gracefully exit the running job."""
         self.logger.info("Kill command received - Attempting to shut down all processes.")
+        triggered: EiffelActivityCanceledEvent = EiffelActivityCanceledEvent()
+        self.etos.events.send_activity_canceled(triggered)
         raise RuntimeError("Terminate command received - Shutting down.")
