@@ -15,33 +15,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # -*- coding: utf-8 -*-
-"""ETOS suite runner module."""
 import logging
-import traceback
-
-from .esr import ESR
-
+import os
+import opentelemetry
 
 LOGGER = logging.getLogger(__name__)
 
-
-def main():
-    """Entry point allowing external calls."""
-    esr = ESR()
-    try:
-        esr.run()  # Blocking
-    except:
-        with open("/dev/termination-log", "w", encoding="utf-8") as termination_log:
-            termination_log.write(traceback.format_exc())
-        raise
-    finally:
-        esr.etos.publisher.wait_for_unpublished_events()
-        esr.etos.publisher.stop()
-    LOGGER.info("ESR Finished Executing.", extra={"user_log": True})
-
-def run():
-    """Entry point for console_scripts."""
-    main()
-
-if __name__ == "__main__":
-    run()
+def get_current_context() -> opentelemetry.context.context.Context:
+    """Get current context (propagated via environment variable OTEL_CONTEXT)."""
+    carrier = {}
+    LOGGER.info("Current OpenTelemetry context env: %s", os.environ.get("OTEL_CONTEXT"))
+    for kv in os.environ.get("OTEL_CONTEXT", "").split(","):
+        if kv:
+            k, v = kv.split("=", 1)
+            carrier[k] = v
+    ctx = opentelemetry.propagate.extract(carrier)
+    LOGGER.info("Current OpenTelemetry context %s", ctx)
+    return ctx

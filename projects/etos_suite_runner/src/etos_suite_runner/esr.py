@@ -15,6 +15,7 @@
 # limitations under the License.
 # -*- coding: utf-8 -*-
 """ETOS suite runner module."""
+import json
 import logging
 import os
 import signal
@@ -28,14 +29,17 @@ from environment_provider.environment import release_full_environment
 from etos_lib import ETOS
 from etos_lib.logging.logger import FORMAT_CONFIG
 from jsontas.jsontas import JsonTas
+import opentelemetry
 
 from .lib.esr_parameters import ESRParameters
 from .lib.exceptions import EnvironmentProviderException
 from .lib.runner import SuiteRunner
+from .otel_tracing import get_current_context
 
 # Remove spam from pika.
 logging.getLogger("pika").setLevel(logging.WARNING)
 
+SUBSUITE_CONTEXT = None
 
 class ESR:  # pylint:disable=too-many-instance-attributes
     """Suite runner for ETOS main program.
@@ -49,6 +53,7 @@ class ESR:  # pylint:disable=too-many-instance-attributes
     def __init__(self) -> None:
         """Initialize ESR by creating a rabbitmq publisher."""
         self.logger = logging.getLogger("ESR")
+        self.otel_tracer = opentelemetry.trace.get_tracer(__name__)
         self.etos = ETOS("ETOS Suite Runner", os.getenv("SOURCE_HOST"), "ETOS Suite Runner")
         signal.signal(signal.SIGTERM, self.graceful_exit)
         self.params = ESRParameters(self.etos)
@@ -67,28 +72,32 @@ class ESR:  # pylint:disable=too-many-instance-attributes
         :param ids: Generated suite runner IDs used to correlate environments and the suite
                     runners.
         """
-        try:
-            provider = EnvironmentProvider(self.params.tercc.meta.event_id, ids, copy=False)
-            result = provider.run()
-        except Exception:
-            self.params.set_status("FAILURE", "Failed to run environment provider")
-            self.logger.error(
-                "Environment provider has failed in creating an environment for test.",
-                extra={"user_log": True},
-            )
-            raise
-        if result.get("error") is not None:
-            self.params.set_status("FAILURE", result.get("error"))
-            self.logger.error(
-                "Environment provider has failed in creating an environment for test.",
-                extra={"user_log": True},
-            )
-        else:
-            self.params.set_status("SUCCESS", result.get("error"))
-            self.logger.info(
-                "Environment provider has finished creating an environment for test.",
-                extra={"user_log": True},
-            )
+        span_name = "request_environment"
+        suite_context = get_current_context()
+        with self.otel_tracer.start_as_current_span(span_name, context=suite_context) as span:
+            try:
+                provider = EnvironmentProvider(self.params.tercc.meta.event_id, ids, copy=False)
+                result = provider.run()
+            except Exception as exc:
+                self.params.set_status("FAILURE", "Failed to run environment provider")
+                self.logger.error(
+                    "Environment provider has failed in creating an environment for test.",
+                    extra={"user_log": True},
+                )
+                span.set_attribute("result", traceback.format_exc())
+                raise
+            if result.get("error") is not None:
+                self.params.set_status("FAILURE", result.get("error"))
+                self.logger.error(
+                    "Environment provider has failed in creating an environment for test.",
+                    extra={"user_log": True},
+                )
+            else:
+                self.params.set_status("SUCCESS", result.get("error"))
+                self.logger.info(
+                    "Environment provider has finished creating an environment for test.",
+                    extra={"user_log": True},
+                )
 
     def _release_environment(self) -> None:
         """Release an environment from the environment provider."""
@@ -96,11 +105,14 @@ class ESR:  # pylint:disable=too-many-instance-attributes
         # Passing variables as keyword argument to make it easier to transition to a function where
         # jsontas is not required.
         jsontas = JsonTas()
-        status, message = release_full_environment(
-            etos=self.etos, jsontas=jsontas, suite_id=self.params.tercc.meta.event_id
-        )
-        if not status:
-            self.logger.error(message)
+        span_name = "release_full_environment"
+        suite_context = get_current_context()
+        with self.otel_tracer.start_as_current_span(span_name, context=suite_context) as span:
+            status, message = release_full_environment(
+                etos=self.etos, jsontas=jsontas, suite_id=self.params.tercc.meta.event_id
+            )
+            if not status:
+                self.logger.error(message)
 
     def run_suites(self, triggered: EiffelActivityTriggeredEvent) -> list[str]:
         """Start up a suite runner handling multiple suites that execute within test runners.
@@ -117,13 +129,11 @@ class ESR:  # pylint:disable=too-many-instance-attributes
             "ESR Docker", {"CONTEXT": context}, image=os.getenv("SUITE_RUNNER")
         )
         runner = SuiteRunner(self.params, self.etos)
-
         ids = []
         for suite in self.params.test_suite:
             suite["test_suite_started_id"] = str(uuid4())
             ids.append(suite["test_suite_started_id"])
         self.logger.info("Number of test suites to run: %d", len(ids), extra={"user_log": True})
-
         try:
             self.logger.info("Get test environment.")
             threading.Thread(
@@ -176,7 +186,6 @@ class ESR:  # pylint:disable=too-many-instance-attributes
                 executionType="AUTOMATED",
                 triggers=[{"type": "EIFFEL_EVENT"}],
             )
-
             self.verify_input()
             context = triggered.meta.event_id
         except:  # noqa

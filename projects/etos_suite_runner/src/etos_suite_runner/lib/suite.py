@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Test suite handler."""
+import json
 import logging
 import threading
 import time
@@ -25,6 +26,7 @@ from environment_provider.environment import release_environment
 from etos_lib import ETOS
 from etos_lib.logging.logger import FORMAT_CONFIG
 from jsontas.jsontas import JsonTas
+import opentelemetry
 
 from .esr_parameters import ESRParameters
 from .exceptions import EnvironmentProviderException
@@ -37,6 +39,7 @@ from .graphql import (
     request_test_suite_started,
 )
 from .log_filter import DuplicateFilter
+from ..otel_tracing import get_current_context
 
 
 class SubSuite:  # pylint:disable=too-many-instance-attributes
@@ -52,6 +55,7 @@ class SubSuite:  # pylint:disable=too-many-instance-attributes
         self.main_suite_id = main_suite_id
         self.logger = logging.getLogger(f"SubSuite - {self.environment.get('name')}")
         self.logger.addFilter(DuplicateFilter(self.logger))
+        self.otel_tracer = opentelemetry.trace.get_tracer(__name__)
         self.test_suite_started = {}
         self.test_suite_finished = {}
 
@@ -93,36 +97,41 @@ class SubSuite:  # pylint:disable=too-many-instance-attributes
             return self.test_suite_finished.get("data", {}).get("testSuiteOutcome", {})
         return {}
 
-    def start(self, identifier: str) -> None:
+    def start(self, identifier: str, otel_context: opentelemetry.context.context.Context) -> None:
         """Start ETR for this sub suite.
 
         :param identifier: An identifier for logs in this sub suite.
         """
-        FORMAT_CONFIG.identifier = identifier
-        self.logger.info("Starting up the ETOS test runner", extra={"user_log": True})
-        executor = Executor(self.etos)
-        try:
-            executor.run_tests(self.environment)
-        except TestStartException as exception:
-            self.failed = True
-            self.logger.error(
-                "Failed to start sub suite: %s", exception.error, extra={"user_log": True}
-            )
-            raise
-        self.logger.info("ETR triggered.")
-        timeout = time.time() + self.etos.debug.default_test_result_timeout
-        try:
-            while time.time() < timeout:
-                time.sleep(10)
-                if not self.started:
-                    continue
-                self.logger.info("ETOS test runner has started", extra={"user_log": True})
-                self.request_finished_event()
-                if self.finished:
-                    self.logger.info("ETOS test runner has finished", extra={"user_log": True})
-                    break
-        finally:
-            self.release(identifier)
+        # OpenTelemetry context needs to be retrieved here, since the subsuite is running in a separate process
+        span_name = "execute_testrunner"
+        with self.otel_tracer.start_as_current_span(span_name, context=otel_context) as span:
+            span.set_attribute("subsuite_id", identifier)
+            FORMAT_CONFIG.identifier = identifier
+            self.logger.info("Starting up the ETOS test runner", extra={"user_log": True})
+            executor = Executor(self.etos)
+            try:
+                executor.run_tests(self.environment)
+            except TestStartException as exception:
+                self.failed = True
+                self.logger.error(
+                    "Failed to start sub suite: %s", exception.error, extra={"user_log": True}
+                )
+                span.set_attribute("failed", str(exception))
+                raise
+            self.logger.info("ETR triggered.")
+            timeout = time.time() + self.etos.debug.default_test_result_timeout
+            try:
+                while time.time() < timeout:
+                    time.sleep(10)
+                    if not self.started:
+                        continue
+                    self.logger.info("ETOS test runner has started", extra={"user_log": True})
+                    self.request_finished_event()
+                    if self.finished:
+                        self.logger.info("ETOS test runner has finished", extra={"user_log": True})
+                        break
+            finally:
+                self.release(identifier)
 
     def release(self, testrun_id) -> None:
         """Release this sub suite."""
@@ -136,16 +145,22 @@ class SubSuite:  # pylint:disable=too-many-instance-attributes
         registry = ProviderRegistry(etos=self.etos, jsontas=jsontas, suite_id=testrun_id)
 
         self.logger.info(self.environment)
-        success = release_environment(
-            etos=self.etos, jsontas=jsontas, provider_registry=registry, sub_suite=self.environment
-        )
-        if not success:
-            self.logger.exception(
-                "Failed to check in %r", self.environment["id"], extra={"user_log": True}
+
+        span_name = "release_environment"
+        with self.otel_tracer.start_as_current_span(span_name) as span:
+            failure = release_environment(
+                etos=self.etos, jsontas=jsontas, provider_registry=registry, sub_suite=self.environment
             )
-            return
-        self.logger.info("Checked in %r", self.environment["id"], extra={"user_log": True})
-        self.released = True
+            span.set_attribute("testrun_id", testrun_id)
+            span.set_attribute("failure", str(failure))
+            span.set_attribute("environment", json.dumps(self.environment, indent=4))
+            if failure is not None:
+                self.logger.exception(
+                    "Failed to check in %r", self.environment["id"], extra={"user_log": True}
+                )
+                return
+            self.logger.info("Checked in %r", self.environment["id"], extra={"user_log": True})
+            self.released = True
 
 
 class TestSuite:  # pylint:disable=too-many-instance-attributes
@@ -157,7 +172,7 @@ class TestSuite:  # pylint:disable=too-many-instance-attributes
     __activity_triggered = None
     __activity_finished = None
 
-    def __init__(self, etos: ETOS, params: ESRParameters, suite: dict) -> None:
+    def __init__(self, etos: ETOS, params: ESRParameters, suite: dict, otel_context: opentelemetry.context.context.Context = None) -> None:
         """Initialize a TestSuite instance."""
         self.etos = etos
         self.params = params
@@ -165,6 +180,7 @@ class TestSuite:  # pylint:disable=too-many-instance-attributes
         self.logger = logging.getLogger(f"TestSuite - {self.suite.get('name')}")
         self.logger.addFilter(DuplicateFilter(self.logger))
         self.sub_suites = []
+        self.otel_context = otel_context
 
     @property
     def sub_suite_environments(self) -> Iterator[dict]:
@@ -324,7 +340,7 @@ class TestSuite:  # pylint:disable=too-many-instance-attributes
                 )
                 self.sub_suites.append(sub_suite)
                 thread = threading.Thread(
-                    target=sub_suite.start, args=(self.params.tercc.meta.event_id,)
+                    target=sub_suite.start, args=(self.params.tercc.meta.event_id, self.otel_context)
                 )
                 threads.append(thread)
                 thread.start()
