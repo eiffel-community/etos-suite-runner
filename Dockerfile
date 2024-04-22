@@ -7,6 +7,7 @@ RUN python3 setup.py bdist_wheel
 FROM python:3.9-slim-buster
 
 COPY --from=build /src/projects/etos_suite_runner/dist/*.whl /tmp
+# hadolint ignore=DL3008
 # hadolint ignore=DL3013
 RUN apt-get update && \
     apt-get install -y gcc libc-dev --no-install-recommends && \
