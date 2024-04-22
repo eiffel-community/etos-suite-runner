@@ -101,7 +101,8 @@ class SubSuite:  # pylint:disable=too-many-instance-attributes
 
         :param identifier: An identifier for logs in this sub suite.
         """
-        # OpenTelemetry context needs to be retrieved here, since the subsuite is running in a separate process
+        # OpenTelemetry context needs to be retrieved here:
+        # the subsuite is running in a separate process
         span_name = "execute_testrunner"
         with self.otel_tracer.start_as_current_span(span_name, context=otel_context) as span:
             span.set_attribute("subsuite_id", identifier)
@@ -175,10 +176,10 @@ class TestSuite:  # pylint:disable=too-many-instance-attributes
     __activity_finished = None
 
     def __init__(self,
-                 etos: ETOS,
-                 params: ESRParameters,
-                 suite: dict,
-                 otel_context: opentelemetry.context.context.Context = None
+        etos: ETOS,
+        params: ESRParameters,
+        suite: dict,
+        otel_context: opentelemetry.context.context.Context = None
     ) -> None:
         """Initialize a TestSuite instance."""
         self.etos = etos

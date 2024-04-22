@@ -42,7 +42,7 @@ setup_logging("ETOS Suite Runner", VERSION, ENVIRONMENT)
 LOGGER = logging.getLogger(__name__)
 
 # Setting OTEL_COLLECTOR_HOST will override the default OTEL collector endpoint.
-# This is needed when using the centralized cluster-level OTEL collector instead of sidecar collector.
+# This is needed when using the cluster-level OTEL collector instead of sidecar collector.
 if os.getenv("OTEL_COLLECTOR_HOST"):
     os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = os.getenv("OTEL_COLLECTOR_HOST")
     LOGGER.info("Using OTEL collector: %s", os.getenv("OTEL_COLLECTOR_HOST"))

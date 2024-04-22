@@ -15,7 +15,6 @@
 # limitations under the License.
 # -*- coding: utf-8 -*-
 """ETOS suite runner module."""
-import json
 import logging
 import os
 import signal
