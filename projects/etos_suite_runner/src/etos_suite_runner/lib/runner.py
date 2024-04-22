@@ -67,7 +67,8 @@ class SuiteRunner:  # pylint:disable=too-few-public-methods
         """Get environments and start all test suites."""
         try:
             test_suites = [
-                TestSuite(self.etos, self.params, suite, otel_context=self.otel_suite_context) for suite in self.params.test_suite
+                TestSuite(self.etos, self.params, suite, otel_context=self.otel_suite_context)
+                for suite in self.params.test_suite
             ]
             with ThreadPool() as pool:
                 pool.map(self.run, test_suites)

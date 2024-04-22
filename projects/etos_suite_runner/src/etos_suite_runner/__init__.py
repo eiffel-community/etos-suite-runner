@@ -50,7 +50,11 @@ if os.getenv("OTEL_COLLECTOR_HOST"):
 if os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"):
     PROVIDER = TracerProvider(
         resource=Resource.create(
-            {SERVICE_NAME: "etos-suite-runner", SERVICE_VERSION: VERSION, SERVICE_NAMESPACE: ENVIRONMENT}
+            {
+                SERVICE_NAME: "etos-suite-runner",
+                SERVICE_VERSION: VERSION,
+                SERVICE_NAMESPACE: ENVIRONMENT,
+            }
         )
     )
     EXPORTER = OTLPSpanExporter()

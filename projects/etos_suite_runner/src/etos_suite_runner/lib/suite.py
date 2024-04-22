@@ -39,7 +39,6 @@ from .graphql import (
     request_test_suite_started,
 )
 from .log_filter import DuplicateFilter
-from ..otel_tracing import get_current_context
 
 
 class SubSuite:  # pylint:disable=too-many-instance-attributes
@@ -149,7 +148,10 @@ class SubSuite:  # pylint:disable=too-many-instance-attributes
         span_name = "release_environment"
         with self.otel_tracer.start_as_current_span(span_name) as span:
             failure = release_environment(
-                etos=self.etos, jsontas=jsontas, provider_registry=registry, sub_suite=self.environment
+                etos=self.etos,
+                jsontas=jsontas,
+                provider_registry=registry,
+                sub_suite=self.environment,
             )
             span.set_attribute("testrun_id", testrun_id)
             span.set_attribute("failure", str(failure))
@@ -172,7 +174,12 @@ class TestSuite:  # pylint:disable=too-many-instance-attributes
     __activity_triggered = None
     __activity_finished = None
 
-    def __init__(self, etos: ETOS, params: ESRParameters, suite: dict, otel_context: opentelemetry.context.context.Context = None) -> None:
+    def __init__(self,
+                 etos: ETOS,
+                 params: ESRParameters,
+                 suite: dict,
+                 otel_context: opentelemetry.context.context.Context = None
+    ) -> None:
         """Initialize a TestSuite instance."""
         self.etos = etos
         self.params = params
@@ -340,7 +347,8 @@ class TestSuite:  # pylint:disable=too-many-instance-attributes
                 )
                 self.sub_suites.append(sub_suite)
                 thread = threading.Thread(
-                    target=sub_suite.start, args=(self.params.tercc.meta.event_id, self.otel_context)
+                    target=sub_suite.start,
+                    args=(self.params.tercc.meta.event_id, self.otel_context),
                 )
                 threads.append(thread)
                 thread.start()

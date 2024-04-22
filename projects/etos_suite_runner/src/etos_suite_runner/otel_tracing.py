@@ -21,6 +21,7 @@ import opentelemetry
 
 LOGGER = logging.getLogger(__name__)
 
+
 def get_current_context() -> opentelemetry.context.context.Context:
     """Get current context (propagated via environment variable OTEL_CONTEXT)."""
     carrier = {}

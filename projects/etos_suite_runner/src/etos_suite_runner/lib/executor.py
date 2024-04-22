@@ -26,7 +26,6 @@ from requests.auth import HTTPBasicAuth, HTTPDigestAuth
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from requests.exceptions import HTTPError
 
-from ..otel_tracing import get_current_context
 
 class TestStartException(Exception):
     """Exception when starting tests."""
@@ -94,7 +93,7 @@ class Executor:  # pylint:disable=too-few-public-methods
         method = getattr(self.etos.http, request.pop("method").lower())
         span_name = "start_execution_space"
         with self.tracer.start_as_current_span(span_name) as span:
-            span.set_attribute("executor_id", executor['id'])
+            span.set_attribute("executor_id", executor["id"])
             span.set_attribute("request", dumps(request, indent=4))
             try:
                 response = method(**request)

@@ -41,6 +41,7 @@ logging.getLogger("pika").setLevel(logging.WARNING)
 
 SUBSUITE_CONTEXT = None
 
+
 class ESR:  # pylint:disable=too-many-instance-attributes
     """Suite runner for ETOS main program.
 
@@ -78,7 +79,7 @@ class ESR:  # pylint:disable=too-many-instance-attributes
             try:
                 provider = EnvironmentProvider(self.params.tercc.meta.event_id, ids, copy=False)
                 result = provider.run()
-            except Exception as exc:
+            except Exception:
                 self.params.set_status("FAILURE", "Failed to run environment provider")
                 self.logger.error(
                     "Environment provider has failed in creating an environment for test.",
@@ -107,7 +108,7 @@ class ESR:  # pylint:disable=too-many-instance-attributes
         jsontas = JsonTas()
         span_name = "release_full_environment"
         suite_context = get_current_context()
-        with self.otel_tracer.start_as_current_span(span_name, context=suite_context) as span:
+        with self.otel_tracer.start_as_current_span(span_name, context=suite_context):
             status, message = release_full_environment(
                 etos=self.etos, jsontas=jsontas, suite_id=self.params.tercc.meta.event_id
             )
