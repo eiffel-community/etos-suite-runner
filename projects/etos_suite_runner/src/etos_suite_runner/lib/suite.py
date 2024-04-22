@@ -175,11 +175,12 @@ class TestSuite:  # pylint:disable=too-many-instance-attributes
     __activity_triggered = None
     __activity_finished = None
 
-    def __init__(self,
+    def __init__(
+        self,
         etos: ETOS,
         params: ESRParameters,
         suite: dict,
-        otel_context: opentelemetry.context.context.Context = None
+        otel_context: opentelemetry.context.context.Context = None,
     ) -> None:
         """Initialize a TestSuite instance."""
         self.etos = etos
