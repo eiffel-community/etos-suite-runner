@@ -21,6 +21,7 @@ from typing import Union
 
 from cryptography.fernet import Fernet
 from etos_lib import ETOS
+from etos_lib.opentelemetry.semconv import Attributes as SemConvAttributes
 from opentelemetry import trace
 from requests.auth import HTTPBasicAuth, HTTPDigestAuth
 from requests.exceptions import ConnectionError as RequestsConnectionError
@@ -93,13 +94,13 @@ class Executor:  # pylint:disable=too-few-public-methods
         method = getattr(self.etos.http, request.pop("method").lower())
         span_name = "start_execution_space"
         with self.tracer.start_as_current_span(span_name) as span:
-            span.set_attribute("executor_id", executor["id"])
-            span.set_attribute("request", dumps(request, indent=4))
+            span.set_attribute(SemConvAttributes.EXECUTOR_ID, executor["id"])
+            span.set_attribute("http.request.body", dumps(request, indent=4))
             try:
                 response = method(**request)
                 response.raise_for_status()
             except HTTPError as http_error:
-                span.set_attribute("http_error", str(http_error))
+                span.set_attribute("error.type", str(http_error))
                 try:
                     raise TestStartException(http_error.response.json()) from http_error
                 except JSONDecodeError:

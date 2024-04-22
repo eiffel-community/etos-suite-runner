@@ -25,6 +25,7 @@ from environment_provider.lib.registry import ProviderRegistry
 from environment_provider.environment import release_environment
 from etos_lib import ETOS
 from etos_lib.logging.logger import FORMAT_CONFIG
+from etos_lib.opentelemetry.semconv import Attributes as SemConvAttributes
 from jsontas.jsontas import JsonTas
 import opentelemetry
 
@@ -105,7 +106,7 @@ class SubSuite:  # pylint:disable=too-many-instance-attributes
         # the subsuite is running in a separate process
         span_name = "execute_testrunner"
         with self.otel_tracer.start_as_current_span(span_name, context=otel_context) as span:
-            span.set_attribute("subsuite_id", identifier)
+            span.set_attribute(SemConvAttributes.SUBSUITE_ID, identifier)
             FORMAT_CONFIG.identifier = identifier
             self.logger.info("Starting up the ETOS test runner", extra={"user_log": True})
             executor = Executor(self.etos)
@@ -116,7 +117,8 @@ class SubSuite:  # pylint:disable=too-many-instance-attributes
                 self.logger.error(
                     "Failed to start sub suite: %s", exception.error, extra={"user_log": True}
                 )
-                span.set_attribute("failed", str(exception))
+                span.record_exception(exception)
+                span.set_status(opentelemetry.trace.Status(opentelemetry.trace.StatusCode.ERROR))
                 raise
             self.logger.info("ETR triggered.")
             timeout = time.time() + self.etos.debug.default_test_result_timeout
@@ -154,13 +156,14 @@ class SubSuite:  # pylint:disable=too-many-instance-attributes
                 provider_registry=registry,
                 sub_suite=self.environment,
             )
-            span.set_attribute("testrun_id", testrun_id)
-            span.set_attribute("failure", str(failure))
-            span.set_attribute("environment", json.dumps(self.environment, indent=4))
+            span.set_attribute(SemConvAttributes.TESTRUN_ID, testrun_id)
+            span.set_attribute(SemConvAttributes.ENVIRONMENT, json.dumps(self.environment, indent=4))
             if failure is not None:
                 self.logger.exception(
                     "Failed to check in %r", self.environment["id"], extra={"user_log": True}
                 )
+                span.record_exception(failure)
+                span.set_status(opentelemetry.trace.Status(opentelemetry.trace.StatusCode.ERROR))
                 return
             self.logger.info("Checked in %r", self.environment["id"], extra={"user_log": True})
             self.released = True

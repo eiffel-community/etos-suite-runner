@@ -27,6 +27,7 @@ from environment_provider.environment_provider import EnvironmentProvider
 from environment_provider.environment import release_full_environment
 from etos_lib import ETOS
 from etos_lib.logging.logger import FORMAT_CONFIG
+from etos_lib.opentelemetry.semconv import Attributes as SemConvAttributes
 from jsontas.jsontas import JsonTas
 import opentelemetry
 
@@ -37,8 +38,6 @@ from .otel_tracing import get_current_context
 
 # Remove spam from pika.
 logging.getLogger("pika").setLevel(logging.WARNING)
-
-SUBSUITE_CONTEXT = None
 
 
 class ESR:  # pylint:disable=too-many-instance-attributes
@@ -78,13 +77,14 @@ class ESR:  # pylint:disable=too-many-instance-attributes
             try:
                 provider = EnvironmentProvider(self.params.tercc.meta.event_id, ids, copy=False)
                 result = provider.run()
-            except Exception:
+            except Exception as exc:
                 self.params.set_status("FAILURE", "Failed to run environment provider")
                 self.logger.error(
                     "Environment provider has failed in creating an environment for test.",
                     extra={"user_log": True},
                 )
-                span.set_attribute("result", traceback.format_exc())
+                span.record_exception(exc)
+                span.set_status(opentelemetry.trace.Status(opentelemetry.trace.StatusCode.ERROR))
                 raise
             if result.get("error") is not None:
                 self.params.set_status("FAILURE", result.get("error"))
@@ -92,6 +92,8 @@ class ESR:  # pylint:disable=too-many-instance-attributes
                     "Environment provider has failed in creating an environment for test.",
                     extra={"user_log": True},
                 )
+                span.set_attribute("exception", str(result.get("error")))
+                span.set_status(opentelemetry.trace.Status(opentelemetry.trace.StatusCode.ERROR))
             else:
                 self.params.set_status("SUCCESS", result.get("error"))
                 self.logger.info(

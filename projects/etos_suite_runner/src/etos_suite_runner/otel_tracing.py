@@ -18,12 +18,42 @@
 """OpenTelemetry-related code."""
 import logging
 import os
+
 import opentelemetry
+from opentelemetry.propagators.textmap import Getter, Setter
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+
 
 LOGGER = logging.getLogger(__name__)
 
 
+class EnvVarContextGetter(Getter):
+    def get(self, carrier, key):
+        value = os.getenv(carrier)
+        if value is not None:
+            pairs = value.split(',')
+            for pair in pairs:
+                k, v = pair.split('=', 1)
+                if k == key:
+                    return [v]
+        return []
+
+    def keys(self, carrier):
+        value = os.getenv(carrier)
+        if value is not None:
+            return [pair.split('=')[0] for pair in value.split(',') if '=' in pair]
+        return []
+
 def get_current_context() -> opentelemetry.context.context.Context:
+    """Get current context propagated via environment variable OTEL_CONTEXT."""
+    LOGGER.info("Current OpenTelemetry context env: %s", os.environ.get("OTEL_CONTEXT"))
+    propagator = TraceContextTextMapPropagator()
+    ctx = propagator.extract(carrier="OTEL_CONTEXT", getter=EnvVarContextGetter())
+    LOGGER.info("Current OpenTelemetry context %s", ctx)
+    return ctx
+
+
+def get_current_context_old() -> opentelemetry.context.context.Context:
     """Get current context (propagated via environment variable OTEL_CONTEXT)."""
     carrier = {}
     LOGGER.info("Current OpenTelemetry context env: %s", os.environ.get("OTEL_CONTEXT"))
