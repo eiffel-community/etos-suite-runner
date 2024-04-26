@@ -27,6 +27,7 @@ from requests.auth import HTTPBasicAuth, HTTPDigestAuth
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from requests.exceptions import HTTPError
 
+from .otel_tracing import OpenTelemetryBase
 
 class TestStartException(Exception):
     """Exception when starting tests."""
@@ -37,7 +38,7 @@ class TestStartException(Exception):
         self.error = message.get("error", "Unknown error when starting tests")
 
 
-class Executor:  # pylint:disable=too-few-public-methods
+class Executor(OpenTelemetryBase):  # pylint:disable=too-few-public-methods
     """Executor for launching ETR."""
 
     logger = logging.getLogger("ESR - Executor")
@@ -93,19 +94,27 @@ class Executor:  # pylint:disable=too-few-public-methods
             request["auth"] = self.__auth(**request["auth"])
         method = getattr(self.etos.http, request.pop("method").lower())
         span_name = "start_execution_space"
-        with self.tracer.start_as_current_span(span_name) as span:
+        with self.tracer.start_as_current_span(
+            span_name, kind=trace.SpanKind.CLIENT
+        ) as span:
             span.set_attribute(SemConvAttributes.EXECUTOR_ID, executor["id"])
             span.set_attribute("http.request.body", dumps(request, indent=4))
             try:
                 response = method(**request)
                 response.raise_for_status()
             except HTTPError as http_error:
-                span.set_attribute("error.type", str(http_error))
                 try:
-                    raise TestStartException(http_error.response.json()) from http_error
+                    exc = TestStartException(http_error.response.json())
+                    self._record_exception(exc)
+                    raise exc from http_error
                 except JSONDecodeError:
-                    raise TestStartException({"error": http_error.response.text}) from http_error
+                    exc = TestStartException({"error": http_error.response.text})
+                    self._record_exception(exc)
+                    raise exc from http_error
             except RequestsConnectionError as connection_error:
-                raise TestStartException({"error": str(connection_error)}) from connection_error
+                exc = TestStartException({"error": str(connection_error)})
+                self._record_exception(exc)
+                raise exc from connection_error
+
             self.logger.info("%r", response)
             self.logger.debug("%r", response.text)

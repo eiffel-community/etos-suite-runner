@@ -34,13 +34,13 @@ import opentelemetry
 from .lib.esr_parameters import ESRParameters
 from .lib.exceptions import EnvironmentProviderException
 from .lib.runner import SuiteRunner
-from .otel_tracing import get_current_context
+from .lib.otel_tracing import get_current_context, OpenTelemetryBase
 
 # Remove spam from pika.
 logging.getLogger("pika").setLevel(logging.WARNING)
 
 
-class ESR:  # pylint:disable=too-many-instance-attributes
+class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
     """Suite runner for ETOS main program.
 
     Run this as a daemon on your system in order to trigger test suites within
@@ -73,7 +73,9 @@ class ESR:  # pylint:disable=too-many-instance-attributes
         """
         span_name = "request_environment"
         suite_context = get_current_context()
-        with self.otel_tracer.start_as_current_span(span_name, context=suite_context) as span:
+        with self.otel_tracer.start_as_current_span(
+            span_name, context=suite_context, kind=opentelemetry.trace.SpanKind.CLIENT,
+        ) as span:
             try:
                 provider = EnvironmentProvider(self.params.tercc.meta.event_id, ids, copy=False)
                 result = provider.run()
@@ -83,8 +85,7 @@ class ESR:  # pylint:disable=too-many-instance-attributes
                     "Environment provider has failed in creating an environment for test.",
                     extra={"user_log": True},
                 )
-                span.record_exception(exc)
-                span.set_status(opentelemetry.trace.Status(opentelemetry.trace.StatusCode.ERROR))
+                self._record_exception(exc)
                 raise
             if result.get("error") is not None:
                 self.params.set_status("FAILURE", result.get("error"))
@@ -92,8 +93,8 @@ class ESR:  # pylint:disable=too-many-instance-attributes
                     "Environment provider has failed in creating an environment for test.",
                     extra={"user_log": True},
                 )
-                span.set_attribute("exception", str(result.get("error")))
-                span.set_status(opentelemetry.trace.Status(opentelemetry.trace.StatusCode.ERROR))
+                exc = Exception(str(result.get("error")))
+                self._record_exception(exc)
             else:
                 self.params.set_status("SUCCESS", result.get("error"))
                 self.logger.info(
@@ -109,7 +110,9 @@ class ESR:  # pylint:disable=too-many-instance-attributes
         jsontas = JsonTas()
         span_name = "release_full_environment"
         suite_context = get_current_context()
-        with self.otel_tracer.start_as_current_span(span_name, context=suite_context):
+        with self.otel_tracer.start_as_current_span(
+            span_name, context=suite_context, kind=opentelemetry.trace.SpanKind.CLIENT,
+        ):
             status, message = release_full_environment(
                 etos=self.etos, jsontas=jsontas, suite_id=self.params.tercc.meta.event_id
             )
@@ -147,10 +150,11 @@ class ESR:  # pylint:disable=too-many-instance-attributes
             self.logger.info("Starting ESR.")
             runner.start_suites_and_wait()
             return ids
-        except EnvironmentProviderException:
+        except EnvironmentProviderException as exc:
             self.logger.info("Release test environment.")
             self._release_environment()
-            raise
+            self._record_exception(exc)
+            raise exc
 
     @staticmethod
     def verify_input() -> None:
@@ -222,6 +226,7 @@ class ESR:  # pylint:disable=too-many-instance-attributes
                 "MAJOR",
                 {"CONTEXT": context},
             )
+            self._record_exception(exception)
             raise
 
     def graceful_exit(self, *_) -> None:

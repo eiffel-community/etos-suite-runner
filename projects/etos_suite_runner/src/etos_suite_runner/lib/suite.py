@@ -21,6 +21,7 @@ import time
 from typing import Iterator
 
 from eiffellib.events import EiffelTestSuiteStartedEvent
+import opentelemetry.trace
 from environment_provider.lib.registry import ProviderRegistry
 from environment_provider.environment import release_environment
 from etos_lib import ETOS
@@ -40,9 +41,10 @@ from .graphql import (
     request_test_suite_started,
 )
 from .log_filter import DuplicateFilter
+from .otel_tracing import OpenTelemetryBase
 
 
-class SubSuite:  # pylint:disable=too-many-instance-attributes
+class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
     """Handle test results and tracking of a single sub suite."""
 
     released = False
@@ -102,10 +104,12 @@ class SubSuite:  # pylint:disable=too-many-instance-attributes
 
         :param identifier: An identifier for logs in this sub suite.
         """
-        # OpenTelemetry context needs to be retrieved here:
-        # the subsuite is running in a separate process
+        # OpenTelemetry context needs to be explicitly given here when creating this new span.
+        # This is because the subsuite is running in a separate thread.
         span_name = "execute_testrunner"
-        with self.otel_tracer.start_as_current_span(span_name, context=otel_context) as span:
+        with self.otel_tracer.start_as_current_span(
+            span_name, context=otel_context, kind=opentelemetry.trace.SpanKind.CLIENT,
+        ) as span:
             span.set_attribute(SemConvAttributes.SUBSUITE_ID, identifier)
             FORMAT_CONFIG.identifier = identifier
             self.logger.info("Starting up the ETOS test runner", extra={"user_log": True})
@@ -117,8 +121,7 @@ class SubSuite:  # pylint:disable=too-many-instance-attributes
                 self.logger.error(
                     "Failed to start sub suite: %s", exception.error, extra={"user_log": True}
                 )
-                span.record_exception(exception)
-                span.set_status(opentelemetry.trace.Status(opentelemetry.trace.StatusCode.ERROR))
+                self._record_exception(exception)
                 raise
             self.logger.info("ETR triggered.")
             timeout = time.time() + self.etos.debug.default_test_result_timeout
@@ -149,7 +152,9 @@ class SubSuite:  # pylint:disable=too-many-instance-attributes
         self.logger.info(self.environment)
 
         span_name = "release_environment"
-        with self.otel_tracer.start_as_current_span(span_name) as span:
+        with self.otel_tracer.start_as_current_span(
+            span_name, kind=opentelemetry.trace.SpanKind.CLIENT,
+        ) as span:
             failure = release_environment(
                 etos=self.etos,
                 jsontas=jsontas,
@@ -162,14 +167,13 @@ class SubSuite:  # pylint:disable=too-many-instance-attributes
                 self.logger.exception(
                     "Failed to check in %r", self.environment["id"], extra={"user_log": True}
                 )
-                span.record_exception(failure)
-                span.set_status(opentelemetry.trace.Status(opentelemetry.trace.StatusCode.ERROR))
+                self._record_exception(failure)
                 return
             self.logger.info("Checked in %r", self.environment["id"], extra={"user_log": True})
             self.released = True
 
 
-class TestSuite:  # pylint:disable=too-many-instance-attributes
+class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
     """Handle the starting and waiting for test suites in ETOS."""
 
     test_suite_started = None
@@ -214,9 +218,11 @@ class TestSuite:  # pylint:disable=too-many-instance-attributes
             if activity_triggered is None:
                 status = self.params.get_status()
                 if status.get("status") == "FAILURE":
-                    raise EnvironmentProviderException(
+                    exc = EnvironmentProviderException(
                         status.get("error"), self.etos.config.get("task_id")
                     )
+                    self._record_exception(exc)
+                    raise exc
                 continue
             activity_finished = self.__environment_activity_finished(
                 activity_triggered["meta"]["id"]
@@ -229,16 +235,20 @@ class TestSuite:  # pylint:disable=too-many-instance-attributes
                     yield environment
             if activity_finished is not None:
                 if activity_finished["data"]["activityOutcome"]["conclusion"] != "SUCCESSFUL":
-                    raise EnvironmentProviderException(
+                    exc = EnvironmentProviderException(
                         activity_finished["data"]["activityOutcome"]["description"],
                         self.etos.config.get("task_id"),
                     )
+                    self._record_exception(exc)
+                    raise exc
                 if len(environments) > 0:  # Must be at least 1 sub suite.
                     return
         else:  # pylint:disable=useless-else-on-loop
-            raise TimeoutError(
+            exc = TimeoutError(
                 f"Timed out after {self.etos.config.get('WAIT_FOR_ENVIRONMENT_TIMEOUT')} seconds."
             )
+            self._record_exception(exc)
+            raise exc
 
     @property
     def all_finished(self) -> bool:

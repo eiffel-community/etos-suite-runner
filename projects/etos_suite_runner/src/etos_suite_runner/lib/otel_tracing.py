@@ -20,15 +20,30 @@ import logging
 import os
 
 import opentelemetry
-from opentelemetry.propagators.textmap import Getter, Setter
+from opentelemetry.propagators.textmap import Getter
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 
 LOGGER = logging.getLogger(__name__)
 
 
+class OpenTelemetryBase:
+    """Base functionality for OpenTelemetry data collection."""
+
+    @staticmethod
+    def _record_exception(exc) -> None:
+        """Record the given exception to the current OpenTelemetry span."""
+        span = opentelemetry.trace.get_current_span()
+        span.set_attribute("error.type", exc.__class__.__name__)
+        span.record_exception(exc)
+        span.set_status(opentelemetry.trace.Status(opentelemetry.trace.StatusCode.ERROR))
+
+
 class EnvVarContextGetter(Getter):
+    """OpenTelemetry context getter class for environment variables."""
+
     def get(self, carrier, key):
+        """Get value using the given carrier variable and key."""
         value = os.getenv(carrier)
         if value is not None:
             pairs = value.split(',')
@@ -39,6 +54,7 @@ class EnvVarContextGetter(Getter):
         return []
 
     def keys(self, carrier):
+        """Get keys of the given carrier variable."""
         value = os.getenv(carrier)
         if value is not None:
             return [pair.split('=')[0] for pair in value.split(',') if '=' in pair]
@@ -46,21 +62,6 @@ class EnvVarContextGetter(Getter):
 
 def get_current_context() -> opentelemetry.context.context.Context:
     """Get current context propagated via environment variable OTEL_CONTEXT."""
-    LOGGER.info("Current OpenTelemetry context env: %s", os.environ.get("OTEL_CONTEXT"))
     propagator = TraceContextTextMapPropagator()
     ctx = propagator.extract(carrier="OTEL_CONTEXT", getter=EnvVarContextGetter())
-    LOGGER.info("Current OpenTelemetry context %s", ctx)
-    return ctx
-
-
-def get_current_context_old() -> opentelemetry.context.context.Context:
-    """Get current context (propagated via environment variable OTEL_CONTEXT)."""
-    carrier = {}
-    LOGGER.info("Current OpenTelemetry context env: %s", os.environ.get("OTEL_CONTEXT"))
-    for kv in os.environ.get("OTEL_CONTEXT", "").split(","):
-        if kv:
-            k, v = kv.split("=", 1)
-            carrier[k] = v
-    ctx = opentelemetry.propagate.extract(carrier)
-    LOGGER.info("Current OpenTelemetry context %s", ctx)
     return ctx

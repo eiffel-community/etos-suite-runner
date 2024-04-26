@@ -17,17 +17,19 @@
 import logging
 from multiprocessing.pool import ThreadPool
 
+import opentelemetry.trace
+
 from environment_provider.environment import release_full_environment
 from etos_lib.logging.logger import FORMAT_CONFIG
 from jsontas.jsontas import JsonTas
 import opentelemetry
 
 from .exceptions import EnvironmentProviderException
-from ..otel_tracing import get_current_context
+from .otel_tracing import get_current_context, OpenTelemetryBase
 from .suite import TestSuite
 
 
-class SuiteRunner:  # pylint:disable=too-few-public-methods
+class SuiteRunner(OpenTelemetryBase):  # pylint:disable=too-few-public-methods
     """Test suite runner.
 
     Splits test suites into sub suites based on number of products available.
@@ -56,7 +58,9 @@ class SuiteRunner:  # pylint:disable=too-few-public-methods
         # jsontas is not required.
         jsontas = JsonTas()
         span_name = "release_full_environment"
-        with self.otel_tracer.start_as_current_span(span_name, context=self.otel_suite_context):
+        with self.otel_tracer.start_as_current_span(
+            span_name, context=self.otel_suite_context, kind=opentelemetry.trace.SpanKind.CLIENT,
+        ):
             status, message = release_full_environment(
                 etos=self.etos, jsontas=jsontas, suite_id=self.params.tercc.meta.event_id
             )
@@ -74,7 +78,9 @@ class SuiteRunner:  # pylint:disable=too-few-public-methods
                 pool.map(self.run, test_suites)
             status = self.params.get_status()
             if status.get("error") is not None:
-                raise EnvironmentProviderException(status["error"], self.etos.config.get("task_id"))
+                exc = EnvironmentProviderException(status["error"], self.etos.config.get("task_id"))
+                self._record_exception(exc)
+                raise exc
         finally:
             self.logger.info("Release the full test environment.")
             self._release_environment()
