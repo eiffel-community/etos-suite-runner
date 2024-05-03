@@ -29,6 +29,7 @@ from requests.exceptions import HTTPError
 
 from .otel_tracing import OpenTelemetryBase
 
+
 class TestStartException(Exception):
     """Exception when starting tests."""
 
@@ -94,11 +95,9 @@ class Executor(OpenTelemetryBase):  # pylint:disable=too-few-public-methods
             request["auth"] = self.__auth(**request["auth"])
         method = getattr(self.etos.http, request.pop("method").lower())
         span_name = "start_execution_space"
-        with self.tracer.start_as_current_span(
-            span_name, kind=trace.SpanKind.CLIENT
-        ) as span:
+        with self.tracer.start_as_current_span(span_name, kind=trace.SpanKind.CLIENT) as span:
             span.set_attribute(SemConvAttributes.EXECUTOR_ID, executor["id"])
-            span.set_attribute("http.request.body", dumps(request, indent=4))
+            span.set_attribute("http.request.body", dumps(request))
             try:
                 response = method(**request)
                 response.raise_for_status()

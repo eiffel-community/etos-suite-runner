@@ -47,9 +47,10 @@ LOGGER = logging.getLogger(__name__)
 if os.getenv("OTEL_COLLECTOR_HOST"):
     os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = os.getenv("OTEL_COLLECTOR_HOST")
 else:
-    LOGGER.debug("Environment variable OTEL_EXPORTER_OTLP_TRACES_ENDPOINT not used.")
-    LOGGER.debug("To specify an OpenTelemetry collector host use OTEL_COLLECTOR_HOST.")
-    del os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"]
+    if "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" in os.environ:
+        LOGGER.debug("Environment variable OTEL_EXPORTER_OTLP_TRACES_ENDPOINT not used.")
+        LOGGER.debug("To specify an OpenTelemetry collector host use OTEL_COLLECTOR_HOST.")
+        del os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"]
 
 if os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"):
     LOGGER.info(

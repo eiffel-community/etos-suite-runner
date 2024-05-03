@@ -27,7 +27,6 @@ from environment_provider.environment_provider import EnvironmentProvider
 from environment_provider.environment import release_full_environment
 from etos_lib import ETOS
 from etos_lib.logging.logger import FORMAT_CONFIG
-from etos_lib.opentelemetry.semconv import Attributes as SemConvAttributes
 from jsontas.jsontas import JsonTas
 import opentelemetry
 
@@ -74,8 +73,10 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
         span_name = "request_environment"
         suite_context = get_current_context()
         with self.otel_tracer.start_as_current_span(
-            span_name, context=suite_context, kind=opentelemetry.trace.SpanKind.CLIENT,
-        ) as span:
+            span_name,
+            context=suite_context,
+            kind=opentelemetry.trace.SpanKind.CLIENT,
+        ):
             try:
                 provider = EnvironmentProvider(self.params.tercc.meta.event_id, ids, copy=False)
                 result = provider.run()
@@ -111,7 +112,9 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
         span_name = "release_full_environment"
         suite_context = get_current_context()
         with self.otel_tracer.start_as_current_span(
-            span_name, context=suite_context, kind=opentelemetry.trace.SpanKind.CLIENT,
+            span_name,
+            context=suite_context,
+            kind=opentelemetry.trace.SpanKind.CLIENT,
         ):
             status, message = release_full_environment(
                 etos=self.etos, jsontas=jsontas, suite_id=self.params.tercc.meta.event_id

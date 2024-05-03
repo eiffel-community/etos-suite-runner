@@ -21,7 +21,6 @@ import time
 from typing import Iterator
 
 from eiffellib.events import EiffelTestSuiteStartedEvent
-import opentelemetry.trace
 from environment_provider.lib.registry import ProviderRegistry
 from environment_provider.environment import release_environment
 from etos_lib import ETOS
@@ -108,7 +107,9 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
         # This is because the subsuite is running in a separate thread.
         span_name = "execute_testrunner"
         with self.otel_tracer.start_as_current_span(
-            span_name, context=otel_context, kind=opentelemetry.trace.SpanKind.CLIENT,
+            span_name,
+            context=otel_context,
+            kind=opentelemetry.trace.SpanKind.CLIENT,
         ) as span:
             span.set_attribute(SemConvAttributes.SUBSUITE_ID, identifier)
             FORMAT_CONFIG.identifier = identifier
@@ -153,7 +154,8 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
 
         span_name = "release_environment"
         with self.otel_tracer.start_as_current_span(
-            span_name, kind=opentelemetry.trace.SpanKind.CLIENT,
+            span_name,
+            kind=opentelemetry.trace.SpanKind.CLIENT,
         ) as span:
             failure = release_environment(
                 etos=self.etos,
@@ -162,7 +164,7 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
                 sub_suite=self.environment,
             )
             span.set_attribute(SemConvAttributes.TESTRUN_ID, testrun_id)
-            span.set_attribute(SemConvAttributes.ENVIRONMENT, json.dumps(self.environment, indent=4))
+            span.set_attribute(SemConvAttributes.ENVIRONMENT, json.dumps(self.environment))
             if failure is not None:
                 self.logger.exception(
                     "Failed to check in %r", self.environment["id"], extra={"user_log": True}

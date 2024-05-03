@@ -30,6 +30,7 @@ LOGGER = logging.getLogger(__name__)
 class OpenTelemetryBase:
     """Base functionality for OpenTelemetry data collection."""
 
+    # pylint: disable=too-few-public-methods
     @staticmethod
     def _record_exception(exc) -> None:
         """Record the given exception to the current OpenTelemetry span."""
@@ -46,9 +47,9 @@ class EnvVarContextGetter(Getter):
         """Get value using the given carrier variable and key."""
         value = os.getenv(carrier)
         if value is not None:
-            pairs = value.split(',')
+            pairs = value.split(",")
             for pair in pairs:
-                k, v = pair.split('=', 1)
+                k, v = pair.split("=", 1)
                 if k == key:
                     return [v]
         return []
@@ -57,8 +58,9 @@ class EnvVarContextGetter(Getter):
         """Get keys of the given carrier variable."""
         value = os.getenv(carrier)
         if value is not None:
-            return [pair.split('=')[0] for pair in value.split(',') if '=' in pair]
+            return [pair.split("=")[0] for pair in value.split(",") if "=" in pair]
         return []
+
 
 def get_current_context() -> opentelemetry.context.context.Context:
     """Get current context propagated via environment variable OTEL_CONTEXT."""

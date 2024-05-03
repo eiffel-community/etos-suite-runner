@@ -17,8 +17,6 @@
 import logging
 from multiprocessing.pool import ThreadPool
 
-import opentelemetry.trace
-
 from environment_provider.environment import release_full_environment
 from etos_lib.logging.logger import FORMAT_CONFIG
 from jsontas.jsontas import JsonTas
@@ -59,7 +57,9 @@ class SuiteRunner(OpenTelemetryBase):  # pylint:disable=too-few-public-methods
         jsontas = JsonTas()
         span_name = "release_full_environment"
         with self.otel_tracer.start_as_current_span(
-            span_name, context=self.otel_suite_context, kind=opentelemetry.trace.SpanKind.CLIENT,
+            span_name,
+            context=self.otel_suite_context,
+            kind=opentelemetry.trace.SpanKind.CLIENT,
         ):
             status, message = release_full_environment(
                 etos=self.etos, jsontas=jsontas, suite_id=self.params.tercc.meta.event_id
