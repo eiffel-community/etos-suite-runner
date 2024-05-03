@@ -96,7 +96,9 @@ class Executor(OpenTelemetryBase):  # pylint:disable=too-few-public-methods
         method = getattr(self.etos.http, request.pop("method").lower())
         span_name = "start_execution_space"
         with self.tracer.start_as_current_span(span_name, kind=trace.SpanKind.CLIENT) as span:
-            span.set_attribute(SemConvAttributes.EXECUTOR_ID, executor["id"])
+            span.set_attribute(
+                SemConvAttributes.EXECUTOR_ID, executor["id"] if "id" in executor else ""
+            )
             span.set_attribute("http.request.body", dumps(request))
             try:
                 response = method(**request)
