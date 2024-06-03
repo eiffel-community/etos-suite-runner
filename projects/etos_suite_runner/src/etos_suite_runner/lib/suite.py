@@ -28,6 +28,7 @@ from etos_lib.logging.logger import FORMAT_CONFIG
 from etos_lib.opentelemetry.semconv import Attributes as SemConvAttributes
 from jsontas.jsontas import JsonTas
 import opentelemetry
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 from .esr_parameters import ESRParameters
 from .exceptions import EnvironmentProviderException
@@ -98,17 +99,20 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
             return self.test_suite_finished.get("data", {}).get("testSuiteOutcome", {})
         return {}
 
-    def start(self, identifier: str, otel_context: opentelemetry.context.context.Context) -> None:
+    def start(self, identifier: str, otel_context_carrier: dict) -> None:
         """Start ETR for this sub suite.
 
         :param identifier: An identifier for logs in this sub suite.
+        :otel_context_carrier: a dict propagating OpenTelemetry context from the parent thread.
         """
         # OpenTelemetry context needs to be explicitly given here when creating this new span.
         # This is because the subsuite is running in a separate thread.
+        otel_context = TraceContextTextMapPropagator().extract(carrier=otel_context_carrier)
+        opentelemetry.context.attach(otel_context)
         span_name = "execute_testrunner"
         with self.otel_tracer.start_as_current_span(
             span_name,
-            context=otel_context,
+            #context=otel_context,
             kind=opentelemetry.trace.SpanKind.CLIENT,
         ) as span:
             span.set_attribute(SemConvAttributes.SUBSUITE_ID, identifier)
@@ -189,7 +193,7 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
         etos: ETOS,
         params: ESRParameters,
         suite: dict,
-        otel_context: opentelemetry.context.context.Context = None,
+        otel_context_carrier: dict = {},
     ) -> None:
         """Initialize a TestSuite instance."""
         self.etos = etos
@@ -198,7 +202,10 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
         self.logger = logging.getLogger(f"TestSuite - {self.suite.get('name')}")
         self.logger.addFilter(DuplicateFilter(self.logger))
         self.sub_suites = []
-        self.otel_context = otel_context
+        self.otel_context_carrier = otel_context_carrier
+        self.otel_context = TraceContextTextMapPropagator().extract(carrier=self.otel_context_carrier)
+        opentelemetry.context.attach(self.otel_context)
+        TraceContextTextMapPropagator().inject(self.otel_context_carrier)
 
     @property
     def sub_suite_environments(self) -> Iterator[dict]:
@@ -331,6 +338,8 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
 
     def start(self) -> None:
         """Send test suite started, trigger and wait for all sub suites to start."""
+        otel_context = TraceContextTextMapPropagator().extract(carrier=self.otel_context_carrier)
+        opentelemetry.context.attach(otel_context)
         self._announce("Starting tests", f"Starting up sub suites for '{self.suite.get('name')}'")
 
         self.test_suite_started = self._send_test_suite_started()
@@ -365,7 +374,7 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
                 self.sub_suites.append(sub_suite)
                 thread = threading.Thread(
                     target=sub_suite.start,
-                    args=(self.params.tercc.meta.event_id, self.otel_context),
+                    args=(self.params.tercc.meta.event_id, self.otel_context_carrier),
                 )
                 threads.append(thread)
                 thread.start()
