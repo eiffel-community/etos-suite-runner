@@ -10,8 +10,6 @@ COPY --from=build /src/projects/etos_suite_runner/dist/*.whl /tmp
 # hadolint ignore=DL3013
 RUN pip install --no-cache-dir /tmp/*.whl && groupadd -r etos && useradd -r -m -s /bin/false -g etos etos
 
-RUN pip list
-
 USER etos
 
 LABEL org.opencontainers.image.source=https://github.com/eiffel-community/etos-suite-runner

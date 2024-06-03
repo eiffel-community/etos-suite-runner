@@ -112,7 +112,6 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
         span_name = "execute_testrunner"
         with self.otel_tracer.start_as_current_span(
             span_name,
-            #context=otel_context,
             kind=opentelemetry.trace.SpanKind.CLIENT,
         ) as span:
             span.set_attribute(SemConvAttributes.SUBSUITE_ID, identifier)
