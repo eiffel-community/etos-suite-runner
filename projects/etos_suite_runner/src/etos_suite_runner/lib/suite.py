@@ -192,6 +192,7 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
         etos: ETOS,
         params: ESRParameters,
         suite: dict,
+        # pylint: disable=dangerous-default-value
         otel_context_carrier: dict = {},
     ) -> None:
         """Initialize a TestSuite instance."""
@@ -202,7 +203,9 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
         self.logger.addFilter(DuplicateFilter(self.logger))
         self.sub_suites = []
         self.otel_context_carrier = otel_context_carrier
-        self.otel_context = TraceContextTextMapPropagator().extract(carrier=self.otel_context_carrier)
+        self.otel_context = TraceContextTextMapPropagator().extract(
+            carrier=self.otel_context_carrier
+        )
         opentelemetry.context.attach(self.otel_context)
         TraceContextTextMapPropagator().inject(self.otel_context_carrier)
 

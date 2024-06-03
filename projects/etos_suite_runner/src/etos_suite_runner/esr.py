@@ -151,7 +151,12 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
             carrier = {}
             TraceContextTextMapPropagator().inject(carrier)
             threading.Thread(
-                target=self._request_environment, args=(ids.copy(), carrier,), daemon=True
+                target=self._request_environment,
+                args=(
+                    ids.copy(),
+                    carrier,
+                ),
+                daemon=True,
             ).start()
 
             self.etos.events.send_activity_started(triggered, {"CONTEXT": context})
