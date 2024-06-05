@@ -78,7 +78,7 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
             kind=opentelemetry.trace.SpanKind.CLIENT,
         ):
             try:
-                provider = EnvironmentProvider(self.params.tercc.meta.event_id, ids, copy=False)
+                provider = EnvironmentProvider(self.params.tercc.meta.event_id, ids)
                 result = provider.run()
             except Exception as exc:
                 self.params.set_status("FAILURE", "Failed to run environment provider")
