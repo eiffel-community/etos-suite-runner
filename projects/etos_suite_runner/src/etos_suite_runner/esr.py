@@ -127,7 +127,7 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
         otel_context = TraceContextTextMapPropagator().extract(carrier=otel_context_carrier)
         otel_context_token = opentelemetry.context.attach(otel_context)
         try:
-            self.__request_environment(ids, otel_context)
+            self.__request_environment(ids)
         finally:
             opentelemetry.context.detach(otel_context_token)
 
