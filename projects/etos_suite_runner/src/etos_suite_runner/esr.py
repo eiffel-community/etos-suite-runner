@@ -23,6 +23,8 @@ import traceback
 from uuid import uuid4
 
 from eiffellib.events import EiffelActivityTriggeredEvent
+import opentelemetry.context
+import opentelemetry.context.context
 from environment_provider.environment_provider import EnvironmentProvider
 from environment_provider.environment import release_full_environment
 from etos_lib import ETOS
@@ -53,7 +55,8 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
         """Initialize ESR by creating a rabbitmq publisher."""
         self.logger = logging.getLogger("ESR")
         self.otel_tracer = opentelemetry.trace.get_tracer(__name__)
-        opentelemetry.context.attach(get_current_context())
+        self.otel_context = get_current_context()
+        self.otel_context_token = opentelemetry.context.attach(self.otel_context)
         self.etos = ETOS("ETOS Suite Runner", os.getenv("SOURCE_HOST"), "ETOS Suite Runner")
         signal.signal(signal.SIGTERM, self.graceful_exit)
         self.params = ESRParameters(self.etos)
@@ -66,19 +69,23 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
             int(os.getenv("ESR_WAIT_FOR_ENVIRONMENT_TIMEOUT")),
         )
 
-    def _request_environment(self, ids: list[str], otel_context_carrier: dict) -> None:
+        self.otel_context = None
+        self.otel_context_token = None
+
+    def __del__(self):
+        """Destructor."""
+        if self.otel_context_token is not None:
+            opentelemetry.context.detach(self.otel_context_token)
+
+    def __request_environment(self, ids: list[str]) -> None:
         """Request an environment from the environment provider.
 
         :param ids: Generated suite runner IDs used to correlate environments and the suite
                     runners.
-        :param otel_context_carrier: a dict carrying current OpenTelemetry context.
         """
         span_name = "request_environment"
-        suite_context = TraceContextTextMapPropagator().extract(carrier=otel_context_carrier)
-        opentelemetry.context.attach(suite_context)
         with self.otel_tracer.start_as_current_span(
             span_name,
-            context=suite_context,
             kind=opentelemetry.trace.SpanKind.CLIENT,
         ):
             try:
@@ -107,6 +114,23 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
                     extra={"user_log": True},
                 )
 
+    def _request_environment(self, ids: list[str], otel_context_carrier: dict) -> None:
+        """Request an environment from the environment provider (OpenTelemetry wrapper).
+
+        :param ids: Generated suite runner IDs used to correlate environments and the suite
+                    runners.
+        :param otel_context_carrier: a dict carrying current OpenTelemetry context.
+        """
+        # OpenTelemetry contexts aren't propagated to threads automatically.
+        # For this reason otel_context needs to be restantiated due to
+        # this method running in a separate thread.
+        otel_context = TraceContextTextMapPropagator().extract(carrier=otel_context_carrier)
+        otel_context_token = opentelemetry.context.attach(otel_context)
+        try:
+            self.__request_environment(ids, otel_context)
+        finally:
+            opentelemetry.context.detach(otel_context_token)
+
     def _release_environment(self) -> None:
         """Release an environment from the environment provider."""
         # TODO: We should remove jsontas as a requirement for this function.
@@ -114,10 +138,9 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
         # jsontas is not required.
         jsontas = JsonTas()
         span_name = "release_full_environment"
-        suite_context = get_current_context()
         with self.otel_tracer.start_as_current_span(
             span_name,
-            context=suite_context,
+            context=self.otel_context,
             kind=opentelemetry.trace.SpanKind.CLIENT,
         ):
             status, message = release_full_environment(
