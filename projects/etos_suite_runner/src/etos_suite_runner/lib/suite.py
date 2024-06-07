@@ -18,7 +18,7 @@ import json
 import logging
 import threading
 import time
-from typing import Iterator
+from typing import Iterator, Union
 
 from eiffellib.events import EiffelTestSuiteStartedEvent
 from environment_provider.lib.registry import ProviderRegistry
@@ -202,8 +202,7 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
         etos: ETOS,
         params: ESRParameters,
         suite: dict,
-        # pylint: disable=dangerous-default-value
-        otel_context_carrier: dict = {},
+        otel_context_carrier: Union[dict, None] = None,
     ) -> None:
         """Initialize a TestSuite instance."""
         self.etos = etos
@@ -212,6 +211,9 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
         self.logger = logging.getLogger(f"TestSuite - {self.suite.get('name')}")
         self.logger.addFilter(DuplicateFilter(self.logger))
         self.sub_suites = []
+
+        if otel_context_carrier is None:
+            otel_context_carrier = {}
 
         self.otel_context_carrier = otel_context_carrier
         self.otel_context = TraceContextTextMapPropagator().extract(

@@ -67,9 +67,6 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
             int(os.getenv("ESR_WAIT_FOR_ENVIRONMENT_TIMEOUT")),
         )
 
-        self.otel_context = None
-        self.otel_context_token = None
-
     def __del__(self):
         """Destructor."""
         if self.otel_context_token is not None:
@@ -120,7 +117,7 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
         :param otel_context_carrier: a dict carrying current OpenTelemetry context.
         """
         # OpenTelemetry contexts aren't propagated to threads automatically.
-        # For this reason otel_context needs to be restantiated due to
+        # For this reason otel_context needs to be reinstantiated due to
         # this method running in a separate thread.
         otel_context = TraceContextTextMapPropagator().extract(carrier=otel_context_carrier)
         otel_context_token = opentelemetry.context.attach(otel_context)
