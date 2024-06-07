@@ -23,8 +23,6 @@ import traceback
 from uuid import uuid4
 
 from eiffellib.events import EiffelActivityTriggeredEvent
-import opentelemetry.context
-import opentelemetry.context.context
 from environment_provider.environment_provider import EnvironmentProvider
 from environment_provider.environment import release_full_environment
 from etos_lib import ETOS

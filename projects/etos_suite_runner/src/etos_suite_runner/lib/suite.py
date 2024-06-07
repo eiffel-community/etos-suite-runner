@@ -99,7 +99,6 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
             return self.test_suite_finished.get("data", {}).get("testSuiteOutcome", {})
         return {}
 
-    
     def _start(self, identifier: str) -> None:
         """Start ETR for this sub suite.
 
@@ -213,7 +212,7 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
         self.logger = logging.getLogger(f"TestSuite - {self.suite.get('name')}")
         self.logger.addFilter(DuplicateFilter(self.logger))
         self.sub_suites = []
-    
+
         self.otel_context_carrier = otel_context_carrier
         self.otel_context = TraceContextTextMapPropagator().extract(
             carrier=self.otel_context_carrier
@@ -353,7 +352,7 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
             "TERC": self.params.tercc.meta.event_id,
         }
         return self.etos.events.send(test_suite_started, links, data)
-    
+
     def _start(self):
         """Send test suite started, trigger and wait for all sub suites to start."""
         self._announce("Starting tests", f"Starting up sub suites for '{self.suite.get('name')}'")
@@ -420,7 +419,10 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
         )
 
     def start(self) -> None:
-        """OpenTelemetry wrapper method for _start()."""
+        """Send test suite started, trigger and wait for all sub suites to start.
+
+        This is an OpenTelemetry wrapper method for _start().
+        """
         # OpenTelemetry contexts aren't automatically propagated to threads.
         # For this reason OpenTelemetry context needs to be reinstantiated here.
         otel_context = TraceContextTextMapPropagator().extract(carrier=self.otel_context_carrier)
