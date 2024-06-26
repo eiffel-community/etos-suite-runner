@@ -48,7 +48,8 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
     """Handle test results and tracking of a single sub suite."""
 
     released = False
-    failed = False
+    _failed = False
+    _failed_flag_set = False
 
     def __init__(self, etos: ETOS, environment: dict, main_suite_id: str) -> None:
         """Initialize a sub suite."""
@@ -60,6 +61,21 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
         self.otel_tracer = opentelemetry.trace.get_tracer(__name__)
         self.test_suite_started = {}
         self.test_suite_finished = {}
+
+    @property
+    def failed(self) -> bool:
+        """Property indicating whether the sub-suite has had failures."""
+        if self._failed_flag_set:
+            return self._failed
+        verdict = self.outcome().get("verdict")
+        conclusion = self.outcome().get("conclusion")
+        return "FAILED" in (verdict, conclusion)
+
+    @failed.setter
+    def failed(self, value: bool) -> None:
+        """Setter for the 'failed' property."""
+        self._failed = value
+        self._failed_flag_set = True
 
     @property
     def finished(self) -> bool:
