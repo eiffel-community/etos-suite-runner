@@ -19,20 +19,23 @@ import logging
 import os
 import signal
 import threading
-import traceback
 from uuid import uuid4
 
-from eiffellib.events import EiffelActivityTriggeredEvent
+from eiffellib.events import (
+    EiffelActivityTriggeredEvent, EiffelTestExecutionRecipeCollectionCreatedEvent,
+)
 from environment_provider.environment_provider import EnvironmentProvider
 from environment_provider.environment import release_full_environment
 from etos_lib import ETOS
 from etos_lib.logging.logger import FORMAT_CONFIG
+from etos_lib.kubernetes.schemas.testrun import Suite
 from jsontas.jsontas import JsonTas
 import opentelemetry
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 from .lib.esr_parameters import ESRParameters
 from .lib.exceptions import EnvironmentProviderException
+from .lib.graphql import request_tercc
 from .lib.runner import SuiteRunner
 from .lib.otel_tracing import get_current_context, OpenTelemetryBase
 
@@ -58,7 +61,7 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
         self.etos = ETOS("ETOS Suite Runner", os.getenv("SOURCE_HOST"), "ETOS Suite Runner")
         signal.signal(signal.SIGTERM, self.graceful_exit)
         self.params = ESRParameters(self.etos)
-        FORMAT_CONFIG.identifier = self.params.tercc.meta.event_id
+        FORMAT_CONFIG.identifier = self.params.testrun_id
 
         self.etos.config.rabbitmq_publisher_from_environment()
         self.etos.start_publisher()
@@ -84,7 +87,7 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
             kind=opentelemetry.trace.SpanKind.CLIENT,
         ):
             try:
-                provider = EnvironmentProvider(self.params.tercc.meta.event_id, ids)
+                provider = EnvironmentProvider(self.params.testrun_id, ids)
                 result = provider.run()
             except Exception as exc:
                 self.params.set_status("FAILURE", "Failed to run environment provider")
@@ -139,7 +142,9 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
             kind=opentelemetry.trace.SpanKind.CLIENT,
         ):
             status, message = release_full_environment(
-                etos=self.etos, jsontas=jsontas, suite_id=self.params.tercc.meta.event_id
+                etos=self.etos,
+                jsontas=jsontas,
+                suite_id=self.params.testrun_id,
             )
             if not status:
                 self.logger.error(message)
@@ -150,20 +155,17 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
         Will only start the test activity if there's a 'slot' available.
 
         :param triggered: Activity triggered.
-        :return: List of main suite IDs
+        :return: List of main suite IDs - Used for tests
         """
         context = triggered.meta.event_id
         self.etos.config.set("context", context)
         self.logger.info("Sending ESR Docker environment event.")
-        self.etos.events.send_environment_defined(
-            "ESR Docker", {"CONTEXT": context}, image=os.getenv("SUITE_RUNNER")
-        )
         runner = SuiteRunner(self.params, self.etos)
-        ids = []
+        suites: list[tuple[str, Suite]] = []
         for suite in self.params.test_suite:
-            suite["test_suite_started_id"] = str(uuid4())
-            ids.append(suite["test_suite_started_id"])
-        self.logger.info("Number of test suites to run: %d", len(ids), extra={"user_log": True})
+            test_suite_started_id = str(uuid4())
+            suites.append((test_suite_started_id, suite))
+        self.logger.info("Number of test suites to run: %d", len(suites), extra={"user_log": True})
         try:
             self.logger.info("Get test environment.")
             carrier = {}
@@ -171,7 +173,7 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
             threading.Thread(
                 target=self._request_environment,
                 args=(
-                    ids.copy(),
+                    [id for id, _ in suites.copy()],
                     carrier,
                 ),
                 daemon=True,
@@ -180,8 +182,8 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
             self.etos.events.send_activity_started(triggered, {"CONTEXT": context})
 
             self.logger.info("Starting ESR.")
-            runner.start_suites_and_wait()
-            return ids
+            runner.start_suites_and_wait(suites)
+            return [id for id, _ in suites]
         except EnvironmentProviderException as exc:
             self.logger.info("Release test environment.")
             self._release_environment()
@@ -191,31 +193,40 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
     @staticmethod
     def verify_input() -> None:
         """Verify that the data input to ESR are correct."""
-        assert os.getenv("SUITE_RUNNER"), "SUITE_RUNNER enviroment variable not provided."
         assert os.getenv("SOURCE_HOST"), "SOURCE_HOST environment variable not provided."
         assert os.getenv("TERCC"), "TERCC environment variable not provided."
+
+    def _send_tercc(self, testrun_id: str, iut_id: str) -> None:
+        """Send tercc will publish the TERCC event for this testrun."""
+        self.logger.info("Sending TERCC event")
+        event = EiffelTestExecutionRecipeCollectionCreatedEvent()
+        event.meta.event_id = testrun_id
+        links = {"CAUSE": iut_id}
+        data = {
+            "selectionStrategy": {"tracker": "Suite Builder", "id": str(uuid4())},
+            "batchesUri": os.getenv("SUITE_SOURCE", "Unknown"),
+        }
+        self.etos.events.send(event, links, data)
 
     def run(self) -> list[str]:
         """Run the ESR main loop.
 
         :return: List of test suites (main suites) that were started.
         """
-        tercc_id = None
+        testrun_id = None
         try:
-            tercc_id = self.params.tercc.meta.event_id
+            testrun_id = self.params.testrun_id
             self.logger.info("ETOS suite runner is starting up", extra={"user_log": True})
-            self.etos.events.send_announcement_published(
-                "[ESR] Launching.",
-                "Starting up ESR. Waiting for tests to start.",
-                "MINOR",
-                {"CAUSE": tercc_id},
-            )
-
+            if os.getenv("IDENTIFIER") is not None:
+                # We are probably running as a TestRun
+                if request_tercc(self.etos, testrun_id) is None:
+                    self._send_tercc(testrun_id, self.params.iut_id)
+ 
             activity_name = "ETOS testrun"
             links = {
                 "CAUSE": [
-                    self.params.tercc.meta.event_id,
-                    self.params.artifact_created["meta"]["id"],
+                    testrun_id,
+                    self.params.iut_id,
                 ]
             }
             triggered = self.etos.events.send_activity_triggered(
@@ -230,12 +241,6 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
             self.logger.exception(
                 "ETOS suite runner failed to start test execution",
                 extra={"user_log": True},
-            )
-            self.etos.events.send_announcement_published(
-                "[ESR] Failed to start test execution",
-                traceback.format_exc(),
-                "CRITICAL",
-                {"CAUSE": tercc_id},
             )
             raise
 
@@ -252,12 +257,6 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
                 extra={"user_log": True},
             )
             self.etos.events.send_activity_canceled(triggered, {"CONTEXT": context}, reason=reason)
-            self.etos.events.send_announcement_published(
-                "[ESR] Test suite execution failed",
-                traceback.format_exc(),
-                "MAJOR",
-                {"CONTEXT": context},
-            )
             self._record_exception(exception)
             raise
 
