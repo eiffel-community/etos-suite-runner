@@ -21,6 +21,7 @@ from .graphql_queries import (
     ACTIVITY_FINISHED,
     ENVIRONMENTS,
     ARTIFACTS,
+    TERCC,
 )
 
 
@@ -38,17 +39,26 @@ def request(etos, query):
     yield from wait_generator
 
 
-def request_artifact_created(etos, tercc):
+def request_artifact_created(etos, tercc=None, artifact_id=None):
     """Fetch artifact created events from GraphQL.
 
     :param etos: ETOS client instance.
     :type etos: :obj:`etos_lib.etos.Etos`
     :param tercc: The TERCC to get artifact created from.
     :type tercc: dict
+    :param artifact_id: The ID of the artifact created.
+    :type artifact_id: str
     :return: Artifact created event.
     :rtype: :obj:`EiffelArtifactCreatedEvent`
     """
-    for response in request(etos, ARTIFACTS % etos.utils.eiffel_link(tercc, "CAUSE")):
+    if tercc is None and artifact_id is None:
+        raise TypeError("At least one of 'tercc' and 'artifact_id' must be provided")
+    if tercc:
+        query = ARTIFACTS % etos.utils.eiffel_link(tercc, "CAUSE")
+    else:
+        query = ARTIFACTS % artifact_id
+
+    for response in request(etos, query):
         try:
             created_node = next(etos.utils.search(response, "node"))[1]
         except StopIteration:
@@ -157,3 +167,23 @@ def request_environment_defined(etos, activity_id):
                 yield environment
             return None  # StopIteration
     return None  # StopIteration
+
+
+def request_tercc(etos, tercc_id):
+    """Request test execution recipe collection created from graphql.
+
+    :param etos: ETOS client instance.
+    :type etos: :obj:`etos_lib.etos.Etos`
+    :param tercc_id: ID of tercc
+    :type tercc_id: str
+    :return: Tercc graphql response
+    :rtype: dict
+    """
+    for response in request(etos, TERCC % tercc_id):
+        if response:
+            try:
+                _, tercc = next(etos.graphql.search_for_nodes(response, "testExecutionRecipeCollectionCreated"))
+            except StopIteration:
+                return None
+            return tercc
+    return None
