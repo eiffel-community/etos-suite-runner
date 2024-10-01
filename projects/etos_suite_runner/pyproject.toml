@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=72", "wheel", "setuptools_scm[toml]>=8"]
+requires = ["setuptools>72", "wheel", "setuptools_scm[toml]>=8"]
 
 [project]
 name = "etos_suite_runner"
@@ -40,7 +40,7 @@ Repository = "https://github.com/eiffel-community/etos-suite-runner"
 [project.scripts]
 
 [project.optional-dependencies]
-testing = ["pytest", "pytest-cov", "setuptools_scm~=8.0"]
+testing = ["pytest", "pytest-cov"]
 
 [test]
 extras = true
@@ -62,6 +62,4 @@ norecursedirs = ["dist", "build", ".tox"]
 testpaths = ["tests"]
 
 [tool.setuptools_scm] 
-version_scheme = "setup:version_scheme"
-local_scheme = "setup:local_scheme"
 root = "../.."

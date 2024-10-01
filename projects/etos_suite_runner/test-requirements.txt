@@ -2,4 +2,5 @@ mock
 pytest
 pytest-cov
 mongomock
+setuptools>=72
 setuptools_scm~=8.0
