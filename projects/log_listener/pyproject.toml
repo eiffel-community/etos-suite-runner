@@ -17,7 +17,6 @@ dependencies = [
 	"eiffellib[rabbitmq]==2.4.1",
     "fastapi==0.109.1",
     "uvicorn==0.22.0",
-    "setuptools_scm~=8.0"
 ]
 
 [options]
