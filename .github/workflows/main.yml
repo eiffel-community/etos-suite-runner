@@ -24,7 +24,7 @@ jobs:
       - name: Install Tox
         run: pip install tox
       - name: Upgrade setuptools
-        run: pip install -U setuptools
+        run: pip install -U setuptools>=72 "setuptools_scm[toml]>=8"
       - name: Run Tox on suite runner
         run: tox
         working-directory: ./projects/etos_suite_runner
