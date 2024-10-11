@@ -48,7 +48,7 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
     """Handle test results and tracking of a single sub suite."""
 
     released = False
-    test_start_exception_caught = False
+    failed = False
 
     def __init__(self, etos: ETOS, environment: dict, main_suite_id: str) -> None:
         """Initialize a sub suite."""
@@ -78,20 +78,6 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
                     self.test_suite_started = test_suite_started
                     break
         return bool(self.test_suite_started)
-
-    @property
-    def failed(self) -> bool:
-        if self.test_start_exception_caught:
-            return True
-        try:
-            conclusion = self.outcome()["conclusion"]
-        except KeyError:
-            msg = f"Failed to get conclusion for {self.environment.get('name')}. Main suite verdict/conclusion may be incorrect!"
-            exc = RuntimeError(msg)
-            self.logger.error(msg)
-            self._record_exception(exc)
-            conclusion = ""
-        return conclusion != "SUCCESSFUL"
 
     def request_finished_event(self) -> None:
         """Request a test suite finished event for this sub suite."""
@@ -130,7 +116,7 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
             try:
                 executor.run_tests(self.environment)
             except TestStartException as exception:
-                self.test_start_exception_caught = True
+                self.failed = True
                 self.logger.error(
                     "Failed to start sub suite: %s", exception.error, extra={"user_log": True}
                 )
