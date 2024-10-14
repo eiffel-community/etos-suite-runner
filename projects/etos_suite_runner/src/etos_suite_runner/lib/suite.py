@@ -81,12 +81,16 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
 
     @property
     def failed(self) -> bool:
+        """Whether or not this sub suite has failed."""
         if self.test_start_exception_caught:
             return True
         try:
             conclusion = self.outcome()["conclusion"]
         except KeyError:
-            msg = f"Failed to get conclusion for {self.environment.get('name')}. Main suite verdict/conclusion may be incorrect!"
+            msg = (
+                f"Failed to get conclusion for {self.environment.get('name')}. "
+                "Main suite verdict/conclusion may be incorrect!"
+            )
             exc = RuntimeError(msg)
             self.logger.error(msg)
             self._record_exception(exc)
