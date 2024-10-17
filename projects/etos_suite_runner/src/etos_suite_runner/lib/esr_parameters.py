@@ -79,7 +79,7 @@ class ESRParameters:
     @property
     def environments(self) -> list[EnvironmentSchema]:
         """Environments to run tests in."""
-        environment_client = Environment(Kubernetes(), strict=True)
+        environment_client = Environment(Kubernetes())
         response = environment_client.client.get(
             namespace=environment_client.namespace,
             label_selector=f"etos.eiffel-community.github.io/id={self.testrun_id}"
@@ -153,6 +153,7 @@ class ESRParameters:
         with self.lock:
             if self.__test_suite is None:
                 tercc = json.loads(os.getenv("TERCC", "{}"))
+                self.logger.info(tercc)
                 if isinstance(tercc, list):
                     self.__test_suite = [Suite(**suite) for suite in tercc]
                 else:

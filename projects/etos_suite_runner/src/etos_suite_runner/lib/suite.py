@@ -158,7 +158,7 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
     def _delete_environment(self) -> bool:
         """Delete environment from Kubernetes."""
         environment_name = self.environment.get("executor", {}).get("id")
-        environment_client = Environment(Kubernetes(), strict=True)
+        environment_client = Environment(Kubernetes())
         return environment_client.delete(environment_name)
 
     def _release_environment(self, testrun_id: str):
