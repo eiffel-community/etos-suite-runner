@@ -76,11 +76,17 @@ def main() -> None:
     @APP.on_event("shutdown")
     def stop(*_) -> None:
         """Stop the listener."""
+        LOGGER.info("Stopping the listener")
         if listener.is_alive():
+            LOGGER.info("Listener is alive, acquire lock")
             LOCK.acquire(timeout=300)  # pylint: disable=consider-using-with
+            LOGGER.info("Lock acquired, clear the queue")
             listener.clear()
+            LOGGER.info("Queue cleared, stop the listener")
             listener.stop()
+            LOGGER.info("Listener stopped, wait for shutdown")
             listener.join()
+        LOGGER.info("Listener stopped")
 
     signal.signal(signal.SIGTERM, stop)
     logformat = "[%(asctime)s] %(levelname)s:%(name)s:%(message)s"

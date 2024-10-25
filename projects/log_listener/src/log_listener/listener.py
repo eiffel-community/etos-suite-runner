@@ -130,4 +130,5 @@ class Listener(threading.Thread):
 
     def clear(self) -> None:
         """Clear up RabbitMQ queue."""
+        self.rabbitmq._closing = True
         self.rabbitmq.delete_queue()
