@@ -39,6 +39,7 @@ from .lib.exceptions import EnvironmentProviderException
 from .lib.graphql import request_tercc
 from .lib.runner import SuiteRunner
 from .lib.otel_tracing import get_current_context, OpenTelemetryBase
+from .lib.events import EventPublisher
 
 # Remove spam from pika.
 logging.getLogger("pika").setLevel(logging.WARNING)
@@ -70,6 +71,7 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
             "WAIT_FOR_ENVIRONMENT_TIMEOUT",
             int(os.getenv("ESR_WAIT_FOR_ENVIRONMENT_TIMEOUT")),
         )
+        self.event_publisher = EventPublisher(etos, self.params.testrun_id)
 
     def __del__(self):
         """Destructor."""
@@ -260,7 +262,7 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
         }
         self.etos.events.send(event, links, data)
 
-    def run(self) -> list[str]:
+    def _run(self) -> list[str]:
         """Run the ESR main loop.
 
         :return: List of test suites (main suites) that were started.
@@ -314,6 +316,26 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
             self.etos.events.send_activity_canceled(triggered, {"CONTEXT": context}, reason=reason)
             self._record_exception(exception)
             raise
+
+    def run(self) -> list[str]:
+        """Run the ESR main loop.
+
+        :return: List of test suites (main suites) that were started.
+        """
+        event = {
+            "event": "shutdown",
+            "data": "ESR has finished",
+        }
+        try:
+            return self._run()
+        except Exception as exception:  # pylint:disable=broad-except
+            event = {
+                "event": "shutdown",
+                "data": str(exception),
+            }
+            raise
+        finally:
+            self.event_publisher.publish(event)
 
     def graceful_exit(self, *_) -> None:
         """Attempt to gracefully exit the running job."""

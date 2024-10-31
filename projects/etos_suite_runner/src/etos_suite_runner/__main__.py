@@ -68,7 +68,7 @@ def main():
     finally:
         esr.etos.publisher.wait_for_unpublished_events()
         esr.etos.publisher.stop()
-    LOGGER.info("ESR Finished Executing.", extra={"user_log": True})
+    LOGGER.info("ESR Finished Executing.")
 
 
 def run():
