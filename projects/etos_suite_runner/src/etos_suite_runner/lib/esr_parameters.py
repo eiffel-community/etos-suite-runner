@@ -26,6 +26,7 @@ from etos_lib.kubernetes.schemas.testrun import Suite
 from etos_lib.kubernetes.schemas.environment import Environment as EnvironmentSchema
 from etos_lib.kubernetes import Kubernetes, Environment
 from eiffellib.events import EiffelTestExecutionRecipeCollectionCreatedEvent
+from etos_lib.kubernetes import Kubernetes, TestRun
 from packageurl import PackageURL
 
 from .graphql import request_artifact_created
@@ -151,7 +152,19 @@ class ESRParameters:
         :return: Test execution event.
         """
         if self.etos.config.get("tercc") is None:
+<<<<<<< HEAD
             tercc = json.loads(os.getenv("TERCC", "{}"))
+=======
+            tercc = EiffelTestExecutionRecipeCollectionCreatedEvent()
+            tercc_json = None
+            if os.getenv("TERCC") is not None:
+                # first option for backwards compatibility
+                tercc_json = json.loads(os.getenv("TERCC"))
+            else:
+                # requires testrun custom resource defined in Kubernetes
+                tercc_json = TestRun(Kubernetes()).get(os.getenv("TESTRUN"))
+            tercc.rebuild(tercc_json)
+>>>>>>> d44fcb9 (Read TERCC from Kubernetes instead of environment)
             self.etos.config.set("tercc", tercc)
         return self.etos.config.get("tercc")
 
