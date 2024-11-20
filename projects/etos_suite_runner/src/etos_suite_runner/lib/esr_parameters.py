@@ -152,21 +152,17 @@ class ESRParameters:
         :return: Test execution event.
         """
         if self.etos.config.get("tercc") is None:
-<<<<<<< HEAD
-            tercc = json.loads(os.getenv("TERCC", "{}"))
-=======
             tercc = EiffelTestExecutionRecipeCollectionCreatedEvent()
             tercc_json = None
             if os.getenv("TERCC") is not None:
                 # first option for backwards compatibility
                 self.logger.info("Reading TERCC from environment variable")
-                tercc_json = json.loads(os.getenv("TERCC"))
+                tercc_json = json.loads(os.getenv("TERCC", "{}"))
+                tercc.rebuild(tercc_json)
             else:
                 # requires testrun custom resource defined in Kubernetes
                 self.logger.info("Reading TERCC from Kubernetes testrun resource")
-                tercc_json = TestRun(Kubernetes()).get(os.getenv("TESTRUN"))
-            tercc.rebuild(tercc_json)
->>>>>>> d44fcb9 (Read TERCC from Kubernetes instead of environment)
+                tercc = TestRun(Kubernetes()).get(os.getenv("TESTRUN"))
             self.etos.config.set("tercc", tercc)
         return self.etos.config.get("tercc")
 
