@@ -182,7 +182,9 @@ def request_tercc(etos, tercc_id):
     for response in request(etos, TERCC % tercc_id):
         if response:
             try:
-                _, tercc = next(etos.graphql.search_for_nodes(response, "testExecutionRecipeCollectionCreated"))
+                _, tercc = next(
+                    etos.graphql.search_for_nodes(response, "testExecutionRecipeCollectionCreated")
+                )
             except StopIteration:
                 return None
             return tercc

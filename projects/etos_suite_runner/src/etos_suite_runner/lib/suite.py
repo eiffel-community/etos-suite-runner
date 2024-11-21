@@ -28,12 +28,12 @@ from etos_lib import ETOS
 from etos_lib.logging.logger import FORMAT_CONFIG
 from etos_lib.opentelemetry.semconv import Attributes as SemConvAttributes
 from etos_lib.kubernetes import Kubernetes, Environment
+from etos_lib.kubernetes.schemas.testrun import Suite
 from jsontas.jsontas import JsonTas
 import opentelemetry
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 from .esr_parameters import ESRParameters
-from etos_lib.kubernetes.schemas.testrun import Suite
 from .exceptions import EnvironmentProviderException
 from .executor import Executor, TestStartException
 from .graphql import (
@@ -218,19 +218,20 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
     __activity_triggered = None
     __activity_finished = None
 
+    # pylint:disable=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         etos: ETOS,
         params: ESRParameters,
         suite: Suite,
-        id: str,
+        test_suite_started_id: str,
         otel_context_carrier: Union[dict, None] = None,
     ) -> None:
         """Initialize a TestSuite instance."""
         self.etos = etos
         self.params = params
         self.suite = suite
-        self.test_suite_started_id = id
+        self.test_suite_started_id = test_suite_started_id
         self.logger = logging.getLogger(f"TestSuite - {self.suite.name}")
         self.logger.addFilter(DuplicateFilter(self.logger))
         self.sub_suites = []
@@ -263,9 +264,7 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
         timeout = time.time() + self.etos.config.get("WAIT_FOR_ENVIRONMENT_TIMEOUT")
         while time.time() < timeout:
             time.sleep(5)
-            activity_triggered = self.__environment_activity_triggered(
-                self.test_suite_started_id
-            )
+            activity_triggered = self.__environment_activity_triggered(self.test_suite_started_id)
             if activity_triggered is None:
                 status = self.params.get_status()
                 if status.get("status") == "FAILURE":
@@ -393,9 +392,7 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
                         "URL to sub suite is missing", self.etos.config.get("task_id")
                     )
                 sub_suite_definition["id"] = sub_suite_environment["meta"]["id"]
-                sub_suite = SubSuite(
-                    self.etos, sub_suite_definition, self.test_suite_started_id
-                )
+                sub_suite = SubSuite(self.etos, sub_suite_definition, self.test_suite_started_id)
                 self.sub_suites.append(sub_suite)
                 thread = threading.Thread(
                     target=sub_suite.start,
@@ -457,13 +454,16 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
         :param conclusion: Conclusion taken on the results.
         :param description: Description of the verdict and conclusion.
         """
-        outcome={
+        outcome = {
             "verdict": verdict,
             "conclusion": conclusion,
             "description": description,
         }
         with self.params.lock:
             results = self.etos.config.get("results")
+            if results is None:
+                self.etos.config.set("results", [])
+                results = self.etos.config.get("results")
             results.append(outcome)  # type: ignore
         self.etos.events.send_test_suite_finished(
             self.test_suite_started,

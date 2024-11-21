@@ -23,7 +23,8 @@ import threading
 from uuid import uuid4
 
 from eiffellib.events import (
-    EiffelActivityTriggeredEvent, EiffelTestExecutionRecipeCollectionCreatedEvent,
+    EiffelActivityTriggeredEvent,
+    EiffelTestExecutionRecipeCollectionCreatedEvent,
 )
 from environment_provider.environment_provider import EnvironmentProvider
 from environment_provider.environment import release_full_environment
@@ -94,9 +95,9 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
                 found = False
                 for request in self.params.environment_requests:
                     requests.append(request)
-                    # This condition check is temporary to make sure that the ESR fails if environment
-                    # requests fail. In the future the ESR shall not even start if the environment request
-                    # does not finish.
+                    # This condition check is temporary to make sure that the ESR fails if
+                    # environment requests fail. In the future the ESR shall not even start
+                    # if the environment request does not finish.
                     for condition in request.status.conditions:
                         _type = condition.get("type", "").lower()
                         if _type == "ready":
@@ -117,7 +118,9 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
                     )
                     break
                 if found and len(success) == len(requests):
-                    self.params.set_status("SUCCESS", "Successfully created an environment for test")
+                    self.params.set_status(
+                        "SUCCESS", "Successfully created an environment for test"
+                    )
                     self.logger.info(
                         "Environment provider has finished creating an environment for test.",
                         extra={"user_log": True},
@@ -277,7 +280,7 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
                 if request_tercc(self.etos, testrun_id) is None:
                     self.logger.info("Sending TERCC")
                     self._send_tercc(testrun_id, self.params.iut_id)
- 
+
             activity_name = "ETOS testrun"
             links = {
                 "CAUSE": [

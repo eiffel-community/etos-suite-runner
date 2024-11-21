@@ -53,15 +53,10 @@ class EventPublisher:
     def publish(self, event: dict):
         """Publish an event to the ETOS internal message bus."""
         if self.disabled:
-            print("DISABLED")
             return
         if self.publisher is None:
-            print("NO PUBLISHER")
             return
         if not self.publisher.running:
-            print("STARTING")
             self.publisher.start()
         routing_key = f"{self.identifier}.event.{event.get('event')}"
-        print(f"Routing key: {routing_key}")
         self.publisher.send_event(event, routing_key=routing_key)
-        print("SENT")

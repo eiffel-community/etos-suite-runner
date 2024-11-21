@@ -76,7 +76,9 @@ class SuiteRunner(OpenTelemetryBase):  # pylint:disable=too-few-public-methods
             otel_context_carrier = {}
             TraceContextTextMapPropagator().inject(otel_context_carrier)
             test_suites = [
-                TestSuite(self.etos, self.params, suite, id, otel_context_carrier=otel_context_carrier)
+                TestSuite(
+                    self.etos, self.params, suite, id, otel_context_carrier=otel_context_carrier
+                )
                 for id, suite in suites
             ]
             with ThreadPool() as pool:

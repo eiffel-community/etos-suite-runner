@@ -26,6 +26,7 @@ from eiffellib.events import (
     EiffelArtifactCreatedEvent,
     EiffelTestExecutionRecipeCollectionCreatedEvent,
 )
+from etos_lib import ETOS
 from etos_lib.lib.config import Config
 from etos_lib.lib.debug import Debug
 from etos_suite_runner.esr import ESR
@@ -193,7 +194,7 @@ class TestPermutationScenario(TestCase):
             os.environ["ETOS_API"] = server.host
 
             self.logger.info("STEP: Initialize and run ESR.")
-            esr = ESR()
+            esr = ESR(ETOS("ETOS Suite Runner", os.getenv("SOURCE_HOST"), "ETOS Suite Runner"))
 
             try:
                 self.logger.info("STEP: Verify that the ESR executes without errors.")
@@ -255,7 +256,7 @@ class TestPermutationScenario(TestCase):
             os.environ["ETOS_API"] = server.host
 
             self.logger.info("STEP: Initialize and run ESR.")
-            esr = ESR()
+            esr = ESR(ETOS("ETOS Suite Runner", os.getenv("SOURCE_HOST"), "ETOS Suite Runner"))
 
             try:
                 self.logger.info("STEP: Verify that the ESR executes without errors.")

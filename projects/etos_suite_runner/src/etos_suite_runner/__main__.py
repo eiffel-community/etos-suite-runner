@@ -48,20 +48,24 @@ def main():
             result = {
                 "conclusion": "Inconclusive",
                 "verdict": "Inconclusive",
-                "description": "Got no results from ESR"
+                "description": "Got no results from ESR",
             }
         elif result is None:
             # No suite failed, so lets just pick the first result
             result = results[0]
         # Convert, for example, INCONCLUSIVE to Inconclusive to match the controller result struct
         # TODO Move the result struct to ETOS library and do this conversion on creation
-        result["conclusion"] = f"{result['conclusion'][0].upper()}{result['conclusion'][1:].lower()}"
-        result["verdict"] = f"{result['verdict'][0].upper()}{result['verdict'][1:].lower()}"
+        result["conclusion"] = result["conclusion"].title().replace("_", "")
+        result["verdict"] = result["verdict"].title()
         with open("/dev/termination-log", "w", encoding="utf-8") as termination_log:
             json.dump(result, termination_log)
         LOGGER.info("ESR result: %r", result)
     except:
-        result = {"conclusion": "Failed", "verdict": "Inconclusive", "description": traceback.format_exc()}
+        result = {
+            "conclusion": "Failed",
+            "verdict": "Inconclusive",
+            "description": traceback.format_exc(),
+        }
         with open("/dev/termination-log", "w", encoding="utf-8") as termination_log:
             json.dump(result, termination_log)
         raise

@@ -82,7 +82,7 @@ class ESRParameters:
         environment_client = Environment(Kubernetes())
         response = environment_client.client.get(
             namespace=environment_client.namespace,
-            label_selector=f"etos.eiffel-community.github.io/id={self.testrun_id}"
+            label_selector=f"etos.eiffel-community.github.io/id={self.testrun_id}",
         )  # type:ignore
 
         environments = []
@@ -98,7 +98,7 @@ class ESRParameters:
         namespace = kubernetes.namespace
         response = environment_requests_client.get(
             namespace=namespace,
-            label_selector=f"etos.eiffel-community.github.io/id={self.testrun_id}"
+            label_selector=f"etos.eiffel-community.github.io/id={self.testrun_id}",
         )  # type:ignore
         return response.items
 
