@@ -41,6 +41,8 @@ def main():
         for suite_result in results:
             if suite_result.get("verdict") == "FAILED":
                 result = suite_result
+                # If the verdict on any main suite is FAILED, that is the verdict we set on the
+                # test run, which means that we can break the loop early in that case.
                 break
             if suite_result.get("verdict") == "INCONCLUSIVE":
                 result = suite_result

@@ -19,7 +19,7 @@ import logging
 import os
 from uuid import uuid4
 from threading import Lock
-from typing import Union
+from typing import Union, Optional
 
 from etos_lib import ETOS
 from etos_lib.kubernetes.schemas.testrun import Suite
@@ -60,13 +60,13 @@ class ESRParameters:
             return self.environment_status.copy()
 
     def _get_id(
-        self, config_key: str, environment_variable: str, eiffel_event: Union[list[dict], dict]
+        self, config_key: str, environment_variable: str, eiffel_event: Union[None, list[dict], dict]
     ) -> str:
         """Get ID will return an ID either from an environment variable or an eiffel event."""
         if self.etos.config.get(config_key) is None:
             if os.getenv(environment_variable) is not None:
                 self.etos.config.set(config_key, os.getenv(environment_variable, "Unknown"))
-            else:
+            elif eiffel_event is not None and isinstance(eiffel_event, dict):
                 self.etos.config.set(config_key, eiffel_event["meta"]["id"])
         _id = self.etos.config.get(config_key)
         if _id is None:
@@ -92,7 +92,7 @@ class ESRParameters:
 
     @property
     def environment_requests(self) -> list:
-        """Environment requests for a particular testrun."""
+        """Environment requests for testrun being executed."""
         kubernetes = Kubernetes()
         environment_requests_client = kubernetes.environment_requests
         namespace = kubernetes.namespace
@@ -103,7 +103,12 @@ class ESRParameters:
         return response.items
 
     def main_suite_ids(self) -> list[str]:
-        """Environment requests to the environment provider."""
+        """Expected main test suite IDs to set on the TestSuiteStarted events.
+
+        These IDs are also passed to the environment provider either generated or
+        taken from the Environment requests to the environment provider, and are
+        used to correlate the environments created with the main test suites.
+        """
         if os.getenv("IDENTIFIER") is None:
             return [str(uuid4()) for _ in range(len(self.test_suite))]
         return [request.spec.id for request in self.environment_requests]
@@ -119,7 +124,7 @@ class ESRParameters:
         return self._get_id("iut_id", "ARTIFACT", self.artifact_created)
 
     @property
-    def artifact_created(self) -> dict:
+    def artifact_created(self) -> Optional[dict]:
         """Artifact under test.
 
         :return: Artifact created event.
@@ -163,7 +168,7 @@ class ESRParameters:
         return self.__test_suite or []
 
     def _eiffel_test_suite(self, tercc: dict) -> list[dict]:
-        """Eiffel test suite parses an Eiffel TERCC even and returns a list of test suites."""
+        """Eiffel test suite parses an Eiffel TERCC event and returns a list of test suites."""
         batch = tercc.get("data", {}).get("batches")
         batch_uri = tercc.get("data", {}).get("batchesUri")
         if batch is not None and batch_uri is not None:
@@ -181,16 +186,20 @@ class ESRParameters:
         raise ValueError("At least one of 'batches' or 'batchesUri' shall be set")
 
     @property
-    def product(self) -> str:
+    def product(self) -> Optional[str]:
         """Product name from artifact created event.
 
         :return: Product name.
         """
         if self.etos.config.get("product") is None:
+            identity = None
             if os.getenv("IDENTITY") is not None:
                 identity = os.getenv("IDENTITY", "")
             else:
-                identity = self.artifact_created["data"].get("identity", "")
-            purl = PackageURL.from_string(identity)
-            self.etos.config.set("product", purl.name)
+                artifact = self.artifact_created
+                if artifact is not None:
+                    identity = artifact["data"].get("identity", "")
+            if identity is not None:
+                purl = PackageURL.from_string(identity)
+                self.etos.config.set("product", purl.name)
         return self.etos.config.get("product")
