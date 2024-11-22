@@ -130,5 +130,8 @@ class Listener(threading.Thread):
 
     def clear(self) -> None:
         """Clear up RabbitMQ queue."""
-        self.rabbitmq._closing = True
+        # RabbitMQ will complain a lot of we delete the queue whilst it is running
+        # but we cannot delete the queue after we've stopped it, so we need to set
+        # the _closing variable first, delete the queue and then stop the client.
+        self.rabbitmq._closing = True  # pylint:disable=protected-access
         self.rabbitmq.delete_queue()
