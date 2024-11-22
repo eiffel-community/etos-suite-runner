@@ -60,7 +60,10 @@ class ESRParameters:
             return self.environment_status.copy()
 
     def _get_id(
-        self, config_key: str, environment_variable: str, eiffel_event: Union[None, list[dict], dict]
+        self,
+        config_key: str,
+        environment_variable: str,
+        eiffel_event: Union[None, list[dict], dict],
     ) -> str:
         """Get ID will return an ID either from an environment variable or an eiffel event."""
         if self.etos.config.get(config_key) is None:
@@ -103,7 +106,7 @@ class ESRParameters:
         return response.items
 
     def main_suite_ids(self) -> list[str]:
-        """Expected main test suite IDs to set on the TestSuiteStarted events.
+        """Test suite IDs to set on the main TestSuiteStarted events.
 
         These IDs are also passed to the environment provider either generated or
         taken from the Environment requests to the environment provider, and are

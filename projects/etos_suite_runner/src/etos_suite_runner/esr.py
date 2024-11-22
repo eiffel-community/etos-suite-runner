@@ -143,7 +143,7 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
                 result = provider.run()
             except Exception as exc:
                 self.params.set_status("FAILURE", "Failed to run environment provider")
-                self.logger.error(
+                self.logger.exception(
                     "Environment provider has failed in creating an environment for test.",
                     extra={"user_log": True},
                 )
