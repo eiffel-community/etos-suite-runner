@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Scenario tests for the most regular cases."""
+
 import json
 import logging
 import os
@@ -126,7 +127,8 @@ class TestRegularScenario(TestCase):
         """Setup providers in the fake ETCD database."""
         Config().get("database").put("/environment/provider/iut/default", json.dumps(IUT_PROVIDER))
         Config().get("database").put(
-            "/environment/provider/execution-space/default", json.dumps(EXECUTION_SPACE_PROVIDER)
+            "/environment/provider/execution-space/default",
+            json.dumps(EXECUTION_SPACE_PROVIDER),
         )
         Config().get("database").put(
             "/environment/provider/log-area/default", json.dumps(LOG_AREA_PROVIDER)
@@ -147,7 +149,8 @@ class TestRegularScenario(TestCase):
             f"/testrun/{testrun_id}/provider/log-area", json.dumps(LOG_AREA_PROVIDER)
         )
         Config().get("database").put(
-            f"/testrun/{testrun_id}/provider/execution-space", json.dumps(EXECUTION_SPACE_PROVIDER)
+            f"/testrun/{testrun_id}/provider/execution-space",
+            json.dumps(EXECUTION_SPACE_PROVIDER),
         )
         Config().get("database").put(
             f"/testrun/{testrun_id}/provider/dataset", json.dumps({"host": host})
@@ -195,19 +198,26 @@ class TestRegularScenario(TestCase):
             os.environ["ETOS_API"] = server.host
 
             self.logger.info("STEP: Initialize and run ESR.")
-            esr = ESR(ETOS("ETOS Suite Runner", os.getenv("SOURCE_HOST"), "ETOS Suite Runner"))
+            etos = ETOS("ETOS Suite Runner", os.getenv("SOURCE_HOST"), "ETOS Suite Runner")
+            esr = ESR(etos)
 
             try:
                 self.logger.info("STEP: Verify that the ESR executes without errors.")
-                suite_ids = esr.run()
+                result = esr.run()
+                suite_ids = etos.config.get("ids")
+                self.assertIsNotNone(suite_ids, "No suite ids added to ETOS config")
                 self.assertEqual(
-                    len(suite_ids), 1, "There shall only be a single test suite started."
+                    len(suite_ids),
+                    1,
+                    "There shall only be a single test suite started.",
                 )
                 suite_finished = Handler.get_from_db(
                     "EiffelTestSuiteFinishedEvent", {"links.target": suite_ids[0]}
                 )
                 self.assertEqual(
-                    len(suite_finished), 1, "There shall only be a single test suite finished."
+                    len(suite_finished),
+                    1,
+                    "There shall only be a single test suite finished.",
                 )
                 outcome = suite_finished[0].get("data", {}).get("outcome", {})
                 self.logger.info(outcome)
@@ -219,6 +229,15 @@ class TestRegularScenario(TestCase):
                         "description": "All tests passed.",
                     },
                     f"Wrong outcome {outcome!r}, outcome should be successful.",
+                )
+                self.assertDictEqual(
+                    result.model_dump(),
+                    {
+                        "conclusion": "Successful",
+                        "verdict": "Passed",
+                        "description": "All tests passed.",
+                    },
+                    f"Wrong outcome {result!r}, outcome should be successful.",
                 )
             finally:
                 # If the _get_environment_status method in ESR does not time out before the test
@@ -258,19 +277,26 @@ class TestRegularScenario(TestCase):
             os.environ["ETOS_API"] = server.host
 
             self.logger.info("STEP: Initialize and run ESR.")
-            esr = ESR(ETOS("ETOS Suite Runner", os.getenv("SOURCE_HOST"), "ETOS Suite Runner"))
+            etos = ETOS("ETOS Suite Runner", os.getenv("SOURCE_HOST"), "ETOS Suite Runner")
+            esr = ESR(etos)
 
             try:
                 self.logger.info("STEP: Verify that the ESR executes without errors.")
-                suite_ids = esr.run()
+                result = esr.run()
+                suite_ids = etos.config.get("ids")
+                self.assertIsNotNone(suite_ids, "No suite ids added to ETOS config")
                 self.assertEqual(
-                    len(suite_ids), 1, "There shall only be a single test suite started."
+                    len(suite_ids),
+                    1,
+                    "There shall only be a single test suite started.",
                 )
                 suite_finished = Handler.get_from_db(
                     "EiffelTestSuiteFinishedEvent", {"links.target": suite_ids[0]}
                 )
                 self.assertEqual(
-                    len(suite_finished), 1, "There shall only be a single test suite finished."
+                    len(suite_finished),
+                    1,
+                    "There shall only be a single test suite finished.",
                 )
                 outcome = suite_finished[0].get("data", {}).get("outcome", {})
                 self.logger.info(outcome)
@@ -282,6 +308,15 @@ class TestRegularScenario(TestCase):
                         "description": "All tests passed.",
                     },
                     f"Wrong outcome {outcome!r}, outcome should be successful.",
+                )
+                self.assertDictEqual(
+                    result.model_dump(),
+                    {
+                        "conclusion": "Successful",
+                        "verdict": "Passed",
+                        "description": "All tests passed.",
+                    },
+                    f"Wrong outcome {result!r}, outcome should be successful.",
                 )
             finally:
                 # If the _get_environment_status method in ESR does not time out before the test
@@ -322,7 +357,7 @@ class TestRegularScenario(TestCase):
             self.logger.info("STEP: Initialize and run ESR.")
             esr = ESR(ETOS("ETOS Suite Runner", os.getenv("SOURCE_HOST"), "ETOS Suite Runner"))
             try:
-                esr.run()
+                result = esr.run()
                 finished = None
                 for event in Debug().events_published.copy():
                     if event.meta.type == "EiffelTestSuiteFinishedEvent":
@@ -337,8 +372,14 @@ class TestRegularScenario(TestCase):
                     outcome.get("conclusion") == "FAILED"
                 ), "Conclusion was not FAILED when test suite is empty"
                 assert (
+                    result.conclusion == "Failed"
+                ), "Conclusion was not FAILED when test suite is empty"
+                assert (
                     outcome.get("verdict") == "INCONCLUSIVE"
                 ), "Verdict was not INCONCLUSIVE when test suite is empty"
+                assert (
+                    result.verdict == "Inconclusive"
+                ), "Vertdict was not INCONCLUSIVE when test suite is empty"
             finally:
                 # If the _get_environment_status method in ESR does not time out before the test
                 # finishes there will be loads of tracebacks in the log. Won't fail the test but

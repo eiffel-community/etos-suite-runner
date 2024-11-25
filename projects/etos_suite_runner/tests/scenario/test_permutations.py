@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Scenario tests for permutations."""
+
 import json
 import logging
 import os
@@ -33,7 +34,11 @@ from etos_suite_runner.esr import ESR
 from tests.library.fake_database import FakeDatabase
 from tests.library.fake_server import FakeServer
 from tests.library.handler import Handler
-from tests.scenario.tercc import ARTIFACT_CREATED, PERMUTATION_TERCC, PERMUTATION_TERCC_SUB_SUITES
+from tests.scenario.tercc import (
+    ARTIFACT_CREATED,
+    PERMUTATION_TERCC,
+    PERMUTATION_TERCC_SUB_SUITES,
+)
 
 IUT_PROVIDER = {
     "iut": {
@@ -125,7 +130,8 @@ class TestPermutationScenario(TestCase):
         """Setup providers in the fake ETCD database."""
         Config().get("database").put("/environment/provider/iut/default", json.dumps(IUT_PROVIDER))
         Config().get("database").put(
-            "/environment/provider/execution-space/default", json.dumps(EXECUTION_SPACE_PROVIDER)
+            "/environment/provider/execution-space/default",
+            json.dumps(EXECUTION_SPACE_PROVIDER),
         )
         Config().get("database").put(
             "/environment/provider/log-area/default", json.dumps(LOG_AREA_PROVIDER)
@@ -146,7 +152,8 @@ class TestPermutationScenario(TestCase):
             f"/testrun/{testrun_id}/provider/log-area", json.dumps(LOG_AREA_PROVIDER)
         )
         Config().get("database").put(
-            f"/testrun/{testrun_id}/provider/execution-space", json.dumps(EXECUTION_SPACE_PROVIDER)
+            f"/testrun/{testrun_id}/provider/execution-space",
+            json.dumps(EXECUTION_SPACE_PROVIDER),
         )
         Config().get("database").put(
             f"/testrun/{testrun_id}/provider/dataset", json.dumps({"host": host})
@@ -194,19 +201,24 @@ class TestPermutationScenario(TestCase):
             os.environ["ETOS_API"] = server.host
 
             self.logger.info("STEP: Initialize and run ESR.")
-            esr = ESR(ETOS("ETOS Suite Runner", os.getenv("SOURCE_HOST"), "ETOS Suite Runner"))
+            etos = ETOS("ETOS Suite Runner", os.getenv("SOURCE_HOST"), "ETOS Suite Runner")
+            esr = ESR(etos)
 
             try:
                 self.logger.info("STEP: Verify that the ESR executes without errors.")
-                suite_ids = esr.run()
+                result = esr.run()
+                suite_ids = etos.config.get("ids")
 
+                self.assertIsNotNone(suite_ids, "No suite ids added to ETOS config")
                 self.assertEqual(len(suite_ids), 2, "There shall only be two test suite started.")
                 for suite_id in suite_ids:
                     suite_finished = Handler.get_from_db(
                         "EiffelTestSuiteFinishedEvent", {"links.target": suite_id}
                     )
                     self.assertEqual(
-                        len(suite_finished), 1, "There shall only be a single test suite finished."
+                        len(suite_finished),
+                        1,
+                        "There shall only be a single test suite finished.",
                     )
                     outcome = suite_finished[0].get("data", {}).get("outcome", {})
                     self.logger.info(outcome)
@@ -219,6 +231,15 @@ class TestPermutationScenario(TestCase):
                         },
                         f"Wrong outcome {outcome!r}, outcome should be successful.",
                     )
+                self.assertDictEqual(
+                    result.model_dump(),
+                    {
+                        "conclusion": "Successful",
+                        "verdict": "Passed",
+                        "description": "All tests passed.",
+                    },
+                    f"Wrong outcome {result!r}, outcome should be successful.",
+                )
             finally:
                 # If the _get_environment_status method in ESR does not time out before the test
                 # finishes there will be loads of tracebacks in the log. Won't fail the test but
@@ -256,21 +277,28 @@ class TestPermutationScenario(TestCase):
             os.environ["ETOS_API"] = server.host
 
             self.logger.info("STEP: Initialize and run ESR.")
-            esr = ESR(ETOS("ETOS Suite Runner", os.getenv("SOURCE_HOST"), "ETOS Suite Runner"))
+            etos = ETOS("ETOS Suite Runner", os.getenv("SOURCE_HOST"), "ETOS Suite Runner")
+            esr = ESR(etos)
 
             try:
                 self.logger.info("STEP: Verify that the ESR executes without errors.")
-                suite_ids = esr.run()
+                result = esr.run()
+                suite_ids = etos.config.get("ids")
 
+                self.assertIsNotNone(suite_ids, "No suite ids added to ETOS config")
                 self.assertEqual(
-                    len(suite_ids), 2, "There shall only be a single test suite started."
+                    len(suite_ids),
+                    2,
+                    "There shall only be a single test suite started.",
                 )
                 for suite_id in suite_ids:
                     suite_finished = Handler.get_from_db(
                         "EiffelTestSuiteFinishedEvent", {"links.target": suite_id}
                     )
                     self.assertEqual(
-                        len(suite_finished), 1, "There shall only be a single test suite finished."
+                        len(suite_finished),
+                        1,
+                        "There shall only be a single test suite finished.",
                     )
                     outcome = suite_finished[0].get("data", {}).get("outcome", {})
                     self.logger.info(outcome)
@@ -283,6 +311,15 @@ class TestPermutationScenario(TestCase):
                         },
                         f"Wrong outcome {outcome!r}, outcome should be successful.",
                     )
+                self.assertDictEqual(
+                    result.model_dump(),
+                    {
+                        "conclusion": "Successful",
+                        "verdict": "Passed",
+                        "description": "All tests passed.",
+                    },
+                    f"Wrong outcome {result!r}, outcome should be successful.",
+                )
 
             finally:
                 # If the _get_environment_status method in ESR does not time out before the test

@@ -15,11 +15,13 @@
 # limitations under the License.
 # -*- coding: utf-8 -*-
 """ETOS suite runner module."""
+
 import logging
 import os
 import signal
 import time
 import threading
+import traceback
 from uuid import uuid4
 
 from eiffellib.events import (
@@ -34,6 +36,8 @@ from etos_lib.kubernetes.schemas.testrun import Suite
 from jsontas.jsontas import JsonTas
 import opentelemetry
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+
+from etos_suite_runner.lib.result import Result
 
 from .lib.esr_parameters import ESRParameters
 from .lib.exceptions import EnvironmentProviderException
@@ -206,13 +210,12 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
             if not status:
                 self.logger.error(message)
 
-    def run_suites(self, triggered: EiffelActivityTriggeredEvent) -> list[str]:
+    def run_suites(self, triggered: EiffelActivityTriggeredEvent):
         """Start up a suite runner handling multiple suites that execute within test runners.
 
         Will only start the test activity if there's a 'slot' available.
 
         :param triggered: Activity triggered.
-        :return: List of main suite IDs - Used for tests
         """
         context = triggered.meta.event_id
         self.etos.config.set("context", context)
@@ -222,6 +225,7 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
         ids = self.params.main_suite_ids()
         for i, suite in enumerate(self.params.test_suite):
             suites.append((ids[i], suite))
+        self.etos.config.set("ids", ids)  # Used for testing
         self.logger.info("Number of test suites to run: %d", len(suites), extra={"user_log": True})
         try:
             self.logger.info("Get test environment.")
@@ -240,7 +244,6 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
 
             self.logger.info("Starting ESR.")
             runner.start_suites_and_wait(suites)
-            return [id for id, _ in suites]
         except EnvironmentProviderException as exc:
             # Not running as part of the ETOS Kubernetes controller environment
             if os.getenv("IDENTIFIER") is None:
@@ -267,11 +270,8 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
         }
         self.etos.events.send(event, links, data)
 
-    def _run(self) -> list[str]:
-        """Run the ESR main loop.
-
-        :return: List of test suites (main suites) that were started.
-        """
+    def _run(self):
+        """Run the ESR main loop."""
         testrun_id = None
         try:
             testrun_id = self.params.testrun_id
@@ -309,11 +309,10 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
             raise
 
         try:
-            ids = self.run_suites(triggered)
+            self.run_suites(triggered)
             self.etos.events.send_activity_finished(
                 triggered, {"conclusion": "SUCCESSFUL"}, {"CONTEXT": context}
             )
-            return ids
         except Exception as exception:  # pylint:disable=broad-except
             reason = str(exception)
             self.logger.exception(
@@ -324,24 +323,56 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
             self._record_exception(exception)
             raise
 
-    def run(self) -> list[str]:
+    def result(self) -> Result:
+        """ESR execution result."""
+        results = self.etos.config.get("results") or []
+        result = {}
+        for suite_result in results:
+            if suite_result.get("verdict") == "FAILED":
+                result = suite_result
+                # If the verdict on any main suite is FAILED, that is the verdict we set on the
+                # test run, which means that we can break the loop early in that case.
+                break
+            if suite_result.get("verdict") == "INCONCLUSIVE":
+                result = suite_result
+        if len(results) == 0:
+            result = {
+                "conclusion": "Inconclusive",
+                "verdict": "Inconclusive",
+                "description": "Got no results from ESR",
+            }
+        elif result == {}:
+            # No suite failed, so lets just pick the first result
+            result = results[0]
+        return Result(**result)
+
+    def run(self) -> Result:
         """Run the ESR main loop.
 
         :return: List of test suites (main suites) that were started.
         """
-        event = {
-            "event": "shutdown",
-            "data": "ESR has finished",
-        }
+        self.etos.config.set("results", [])
+        result = Result(
+            verdict="Inconclusive",
+            conclusion="Failed",
+            description="ESR did not execute",
+        )
         try:
-            return self._run()
-        except Exception as exception:  # pylint:disable=broad-except
-            event = {
-                "event": "shutdown",
-                "data": str(exception),
-            }
+            self._run()
+            result = self.result()
+            return result
+        except Exception:  # pylint:disable=bare-except
+            result = Result(
+                conclusion="Failed",
+                verdict="Inconclusive",
+                description=traceback.format_exc(),
+            )
             raise
         finally:
+            event = {
+                "event": "shutdown",
+                "data": result.model_dump(),
+            }
             self.event_publisher.publish(event)
 
     def graceful_exit(self, *_) -> None:
