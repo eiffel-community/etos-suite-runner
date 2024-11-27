@@ -379,7 +379,7 @@ class TestRegularScenario(TestCase):
                 ), "Verdict was not INCONCLUSIVE when test suite is empty"
                 assert (
                     result.verdict == "Inconclusive"
-                ), "Vertdict was not INCONCLUSIVE when test suite is empty"
+                ), "Verdict was not INCONCLUSIVE when test suite is empty"
             finally:
                 # If the _get_environment_status method in ESR does not time out before the test
                 # finishes there will be loads of tracebacks in the log. Won't fail the test but
