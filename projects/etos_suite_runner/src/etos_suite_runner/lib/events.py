@@ -32,8 +32,6 @@ class EventPublisher:
         publisher = etos.config.get("event_publisher")
         if self.disabled is False and publisher is None:
             config = etos.config.etos_rabbitmq_publisher_data()
-            # This password should already be decrypted when setting up the logging.
-            config["password"] = etos.config.get("etos_rabbitmq_password")
             publisher = RabbitMQLogPublisher(**config, routing_key=None)
             etos.config.set("event_publisher", publisher)
         self.publisher = publisher
