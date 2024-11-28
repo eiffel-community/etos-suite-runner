@@ -40,6 +40,8 @@ TEST_SUITE_FINISHED = """
         data {
           testSuiteOutcome {
             verdict
+            conclusion
+            description
           }
         }
         meta {
