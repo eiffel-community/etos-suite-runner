@@ -164,7 +164,8 @@ class ESRParameters:
                     testrun = TestRun(Kubernetes()).get(testrun_id)
                     self.__test_suite = testrun.spec.suites
                 else:
-                    test_suite = self._eiffel_test_suite(os.getenv("TERCC", "{}"))
+                    tercc = json.loads(os.getenv("TERCC", "{}"))
+                    test_suite = self._eiffel_test_suite(tercc)
                     test_suite = [Suite.from_tercc(suite, {}) for suite in test_suite]
                     self.__test_suite = test_suite
         return self.__test_suite or []
