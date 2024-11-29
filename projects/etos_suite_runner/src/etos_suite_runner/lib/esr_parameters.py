@@ -155,34 +155,18 @@ class ESRParameters:
             self.etos.config.set("tercc", tercc)
         return self.etos.config.get("tercc")
 
-    def _get_test_suite_list_from_tercc(self) -> list[Suite]:
-        """Read test suite list from TERCC."""
-        tercc = json.loads(os.getenv("TERCC", "{}"))
-        self.logger.info("Reading test suites from TERCC: %s", tercc)
-        if isinstance(tercc, list):
-            test_suite = [Suite(**suite) for suite in tercc]
-        else:
-            test_suite = self._eiffel_test_suite(tercc)
-            # The dataset is not necessary for the suite runner.
-            test_suite = [Suite.from_tercc(suite, {}) for suite in test_suite]
-        return test_suite
-
-    def _get_test_suite_list_from_kubernetes_testrun(self) -> list[Suite]:
-        """Read test suite list from Kubernetes test run object."""
-        testrun_id = os.getenv("TESTRUN")
-        self.logger.info("Reading test suites from Kubernetes testrun object: %s", testrun_id)
-        testrun = TestRun(Kubernetes()).get(testrun_id)
-        return testrun.spec.suites
-
     @property
     def test_suite(self) -> list[Suite]:
         """Download and return test batches."""
         with self.lock:
             if self.__test_suite is None:
-                if os.environ.get("TERCC") is not None:
-                    self.__test_suite = self._get_test_suite_list_from_tercc()
+                if (testrun_id := os.getenv("TESTRUN")) is not None:
+                    testrun = TestRun(Kubernetes()).get(testrun_id)
+                    self.__test_suite = testrun.spec.suites
                 else:
-                    self.__test_suite = self._get_test_suite_list_from_kubernetes_testrun()
+                    test_suite = self._eiffel_test_suite(os.getenv("TERCC", "{}"))
+                    test_suite = [Suite.from_tercc(suite, {}) for suite in test_suite]
+                    self.__test_suite = test_suite
         return self.__test_suite or []
 
     def _eiffel_test_suite(self, tercc: dict) -> list[dict]:
