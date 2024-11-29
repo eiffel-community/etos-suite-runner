@@ -24,9 +24,8 @@ from typing import Union, Optional
 from etos_lib import ETOS
 from etos_lib.kubernetes.schemas.testrun import Suite
 from etos_lib.kubernetes.schemas.environment import Environment as EnvironmentSchema
-from etos_lib.kubernetes import Kubernetes, Environment
+from etos_lib.kubernetes import Kubernetes, Environment, TestRun
 from eiffellib.events import EiffelTestExecutionRecipeCollectionCreatedEvent
-from etos_lib.kubernetes import Kubernetes, TestRun
 from packageurl import PackageURL
 
 from .graphql import request_artifact_created
@@ -152,37 +151,38 @@ class ESRParameters:
         :return: Test execution event.
         """
         if self.etos.config.get("tercc") is None:
-<<<<<<< HEAD
             tercc = json.loads(os.getenv("TERCC", "{}"))
-=======
-            tercc = EiffelTestExecutionRecipeCollectionCreatedEvent()
-            tercc_json = None
-            if os.getenv("TERCC") is not None:
-                # first option for backwards compatibility
-                self.logger.info("Reading TERCC from environment variable")
-                tercc_json = json.loads(os.getenv("TERCC"))
-            else:
-                # requires testrun custom resource defined in Kubernetes
-                self.logger.info("Reading TERCC from Kubernetes testrun resource")
-                tercc_json = TestRun(Kubernetes()).get(os.getenv("TESTRUN"))
-            tercc.rebuild(tercc_json)
->>>>>>> d44fcb9 (Read TERCC from Kubernetes instead of environment)
             self.etos.config.set("tercc", tercc)
         return self.etos.config.get("tercc")
+
+    def _get_test_suite_list_from_tercc(self) -> list[Suite]:
+        """Read test suite list from TERCC."""
+        tercc = json.loads(os.getenv("TERCC", "{}"))
+        self.logger.info("Reading test suites from TERCC: %s", tercc)
+        if isinstance(tercc, list):
+            test_suite = [Suite(**suite) for suite in tercc]
+        else:
+            test_suite = self._eiffel_test_suite(tercc)
+            # The dataset is not necessary for the suite runner.
+            test_suite = [Suite.from_tercc(suite, {}) for suite in test_suite]
+        return test_suite
+
+    def _get_test_suite_list_from_kubernetes_testrun(self) -> list[Suite]:
+        """Read test suite list from Kubernetes test run object."""
+        testrun_id = os.getenv("TESTRUN")
+        self.logger.info("Reading test suites from Kubernetes testrun object: %s", testrun_id)
+        testrun = TestRun(Kubernetes()).get(testrun_id)
+        return testrun.spec.suites
 
     @property
     def test_suite(self) -> list[Suite]:
         """Download and return test batches."""
         with self.lock:
             if self.__test_suite is None:
-                tercc = json.loads(os.getenv("TERCC", "{}"))
-                self.logger.info(tercc)
-                if isinstance(tercc, list):
-                    self.__test_suite = [Suite(**suite) for suite in tercc]
+                if os.environ.get("TERCC") is not None:
+                    self.__test_suite = self._get_test_suite_list_from_tercc()
                 else:
-                    test_suite = self._eiffel_test_suite(tercc)
-                    # The dataset is not necessary for the suite runner.
-                    self.__test_suite = [Suite.from_tercc(suite, {}) for suite in test_suite]
+                    self.__test_suite = self._get_test_suite_list_from_kubernetes_testrun()
         return self.__test_suite or []
 
     def _eiffel_test_suite(self, tercc: dict) -> list[dict]:
