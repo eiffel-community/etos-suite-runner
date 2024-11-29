@@ -166,6 +166,7 @@ class ESRParameters:
                 else:
                     tercc = json.loads(os.getenv("TERCC", "{}"))
                     test_suite = self._eiffel_test_suite(tercc)
+                    # The dataset is not necessary for the suite runner.
                     test_suite = [Suite.from_tercc(suite, {}) for suite in test_suite]
                     self.__test_suite = test_suite
         return self.__test_suite or []
