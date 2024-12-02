@@ -64,7 +64,7 @@ class Executor(OpenTelemetryBase):  # pylint:disable=too-few-public-methods
             self.logger.debug("No encryption key available, won't decrypt password")
             return password
         password_value = password.get("$decrypt", {}).get("value")
-        if password_value is None:
+        if password_value is None or password_value == "":
             self.logger.debug("No '$decrypt' JSONTas struct for password, won't decrypt password")
             return password
         return Fernet(key).decrypt(password_value).decode()

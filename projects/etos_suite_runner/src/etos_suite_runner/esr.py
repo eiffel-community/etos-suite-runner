@@ -110,7 +110,7 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
                             reason = condition.get("reason", "").lower()
                             if status == "false" and reason == "failed":
                                 failed.append(condition)
-                            if status == "false" and reason == "done":
+                            if status == "true" and reason == "done":
                                 success.append(condition)
                 if found and len(failed) > 0:
                     for condition in failed:
@@ -122,14 +122,13 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
                     )
                     break
                 if found and len(success) == len(requests):
-                    self.params.set_status(
-                        "SUCCESS", "Successfully created an environment for test"
-                    )
+                    self.params.set_status("SUCCESS", None)
                     self.logger.info(
                         "Environment provider has finished creating an environment for test.",
                         extra={"user_log": True},
                     )
                     break
+        self.logger.info("Environmentrequest finished")
 
     def __request_environment(self, ids: list[str]) -> None:
         """Request an environment from the environment provider.
@@ -175,6 +174,7 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
                     runners.
         :param otel_context_carrier: a dict carrying current OpenTelemetry context.
         """
+        FORMAT_CONFIG.identifier = self.params.testrun_id
         # OpenTelemetry contexts aren't propagated to threads automatically.
         # For this reason otel_context needs to be reinstantiated due to
         # this method running in a separate thread.

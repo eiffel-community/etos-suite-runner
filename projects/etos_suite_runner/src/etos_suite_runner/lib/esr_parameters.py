@@ -44,7 +44,7 @@ class ESRParameters:
         self.issuer = {"name": "ETOS Suite Runner"}
         self.environment_status = {"status": "NOT_STARTED", "error": None}
 
-    def set_status(self, status: str, error: str) -> None:
+    def set_status(self, status: str, error: Optional[str] = None) -> None:
         """Set environment provider status."""
         with self.lock:
             self.logger.debug("Setting environment status to %r, error %r", status, error)
