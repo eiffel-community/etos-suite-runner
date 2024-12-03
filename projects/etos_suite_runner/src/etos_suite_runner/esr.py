@@ -256,7 +256,10 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
     def verify_input() -> None:
         """Verify that the data input to ESR are correct."""
         assert os.getenv("SOURCE_HOST"), "SOURCE_HOST environment variable not provided."
-        assert os.getenv("TERCC"), "TERCC environment variable not provided."
+
+        if os.getenv("TESTRUN") is None:
+            # TERCC variable is set only in v0 ETOS, TESTRUN in v1 and onwards.
+            assert os.getenv("TERCC"), "TERCC environment variable not provided."
 
     def _send_tercc(self, testrun_id: str, iut_id: str) -> None:
         """Send tercc will publish the TERCC event for this testrun."""
