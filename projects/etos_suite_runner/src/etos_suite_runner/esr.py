@@ -183,7 +183,7 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
         try:
             # TestRun identifier, correlates to the TERCC that should be sent when
             # running in the ETOS Kubernetes controller environment.
-            if os.getenv("IDENTIFIER") is not None:
+            if self.params.etos_controller:
                 self.__environment_request_status()
             else:
                 self.__request_environment(ids)
@@ -246,7 +246,7 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
             runner.start_suites_and_wait(suites)
         except EnvironmentProviderException as exc:
             # Not running as part of the ETOS Kubernetes controller environment
-            if os.getenv("IDENTIFIER") is None:
+            if not self.params.etos_controller:
                 self.logger.info("Release test environment.")
                 self._release_environment()
             self._record_exception(exc)
@@ -281,7 +281,7 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
             self.logger.info("ETOS suite runner is starting up", extra={"user_log": True})
             # TestRun identifier, correlates to the TERCC that should be sent when
             # running in the ETOS Kubernetes controller environment.
-            if os.getenv("IDENTIFIER") is not None:
+            if self.params.etos_controller:
                 # We are probably running in the ETOS Kubernetes controller environment
                 self.logger.info("Checking TERCC")
                 if request_tercc(self.etos, testrun_id) is None:

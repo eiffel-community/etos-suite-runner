@@ -53,11 +53,12 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
     released = False
     test_start_exception_caught = False
 
-    def __init__(self, etos: ETOS, environment: dict, main_suite_id: str) -> None:
+    def __init__(self, etos: ETOS, environment: dict, main_suite_id: str, controller: bool) -> None:
         """Initialize a sub suite."""
         self.etos = etos
         self.environment = environment
         self.main_suite_id = main_suite_id
+        self.controller = controller
         self.logger = logging.getLogger(f"SubSuite - {self.environment.get('name')}")
         self.logger.addFilter(DuplicateFilter(self.logger))
         self.otel_tracer = opentelemetry.trace.get_tracer(__name__)
@@ -213,7 +214,7 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
             "Check in test environment %r", self.environment["id"], extra={"user_log": True}
         )
         # Running as part of ETOS controller
-        if os.getenv("IDENTIFIER") is not None:
+        if self.controller:
             success = self._delete_environment()
         else:
             success = self._release_environment(testrun_id)
@@ -375,7 +376,7 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
             "Start collecting sub suite definitions (timeout=%ds).",
             self.etos.config.get("WAIT_FOR_ENVIRONMENT_TIMEOUT"),
         )
-        if os.getenv("IDENTIFIER") is not None:
+        if self.params.etos_controller:
             yield from self._sub_suite_environments_from_kubernetes()
         else:
             yield from self._sub_suite_environments_from_eiffel()
@@ -466,7 +467,12 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
                 self.logger.info(
                     "Environment received. Starting up a sub suite", extra={"user_log": True}
                 )
-                sub_suite = SubSuite(self.etos, sub_suite_definition, self.test_suite_started_id)
+                sub_suite = SubSuite(
+                    self.etos,
+                    sub_suite_definition,
+                    self.test_suite_started_id,
+                    self.params.etos_controller,
+                )
                 self.sub_suites.append(sub_suite)
                 thread = threading.Thread(
                     target=sub_suite.start,

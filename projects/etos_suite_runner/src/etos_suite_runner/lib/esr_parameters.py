@@ -59,6 +59,11 @@ class ESRParameters:
         with self.lock:
             return self.environment_status.copy()
 
+    @property
+    def etos_controller(self) -> bool:
+        """Whether or not the suite runneris running as a part of the ETOS controller."""
+        return os.getenv("IDENTIFIER") is not None
+
     def _get_id(
         self,
         config_key: str,
@@ -112,7 +117,7 @@ class ESRParameters:
         taken from the Environment requests to the environment provider, and are
         used to correlate the environments created with the main test suites.
         """
-        if os.getenv("IDENTIFIER") is None:
+        if not self.etos_controller:
             return [str(uuid4()) for _ in range(len(self.test_suite))]
         return [request.spec.id for request in self.environment_requests]
 

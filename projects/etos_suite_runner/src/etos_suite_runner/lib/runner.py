@@ -90,7 +90,7 @@ class SuiteRunner(OpenTelemetryBase):  # pylint:disable=too-few-public-methods
                 raise exc
         finally:
             # Not running as part of controller
-            if os.getenv("IDENTIFIER") is None:
+            if not self.params.etos_controller:
                 self.logger.info("Release the full test environment.")
                 self._release_environment()
 
