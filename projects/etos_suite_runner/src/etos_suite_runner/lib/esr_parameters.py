@@ -61,7 +61,7 @@ class ESRParameters:
 
     @property
     def etos_controller(self) -> bool:
-        """Whether or not the suite runneris running as a part of the ETOS controller."""
+        """Whether or not the suite runner is running as a part of the ETOS controller."""
         return os.getenv("IDENTIFIER") is not None
 
     def _get_id(
