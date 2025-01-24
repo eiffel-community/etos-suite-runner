@@ -16,13 +16,17 @@ jobs:
     - name: Build app image
       run: docker build . --tag image
 
-    - name: Log into registry
-      run: echo "${{ secrets.REGISTRYPASSWORD }}" | docker login registry.nordix.org -u ${{ secrets.REGISTRYUSERNAME }} --password-stdin
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Push app image
       id: image
       run: |
-        IMAGE_ID=registry.nordix.org/eiffel/etos-suite-runner
+        IMAGE_ID=ghcr.io/eiffel-community/etos-suite-runner
         # Strip git ref prefix from version
         VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
         # Strip "v" prefix from tag name
@@ -45,13 +49,17 @@ jobs:
     - name: Build app image
       run: docker build . -f Dockerfile.log_listener --tag image
 
-    - name: Log into registry
-      run: echo "${{ secrets.REGISTRYPASSWORD }}" | docker login registry.nordix.org -u ${{ secrets.REGISTRYUSERNAME }} --password-stdin
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Push app image
       id: image
       run: |
-        IMAGE_ID=registry.nordix.org/eiffel/etos-log-listener
+        IMAGE_ID=ghcr.io/eiffel-community/etos-log-listener
         # Strip git ref prefix from version
         VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
         # Strip "v" prefix from tag name
@@ -79,8 +87,8 @@ jobs:
         valueFile: 'manifests/base/kustomization.yaml'
         changes: |
           {
-            "configMapGenerator[0].literals[0]": "SUITE_RUNNER=registry.nordix.org/eiffel/etos-suite-runner:${{ needs.build_esr.outputs.esrVersion }}",
-            "configMapGenerator[0].literals[1]": "LOG_LISTENER=registry.nordix.org/eiffel/etos-log-listener:${{ needs.build_listener.outputs.logListenerVersion }}"
+            "configMapGenerator[0].literals[0]": "SUITE_RUNNER=ghcr.io/eiffel-community/etos-suite-runner:${{ needs.build_esr.outputs.esrVersion }}",
+            "configMapGenerator[0].literals[1]": "LOG_LISTENER=ghcr.io/eiffel-community/etos-log-listener:${{ needs.build_listener.outputs.logListenerVersion }}"
           }
         branch: main
         commitChange: true

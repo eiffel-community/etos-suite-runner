@@ -114,7 +114,7 @@ class TestPermutationScenario(TestCase):
         """Set up environment variables for the ESR."""
         os.environ["ETOS_DISABLE_SENDING_EVENTS"] = "1"
         os.environ["ESR_WAIT_FOR_ENVIRONMENT_TIMEOUT"] = "20"
-        os.environ["SUITE_RUNNER"] = "registry.nordix.org/eiffel/etos-suite-runner"
+        os.environ["SUITE_RUNNER"] = "ghcr.io/eiffel-community/etos-suite-runner"
         os.environ["SOURCE_HOST"] = "localhost"
         Config().set("database", FakeDatabase())
 

@@ -42,7 +42,7 @@ PERMUTATION_TERCC = {
                             },
                             {
                                 "key": "TEST_RUNNER",
-                                "value": "registry.nordix.org/eiffel/etos-python-test-runner:3.9.0",
+                                "value": "ghcr.io/eiffel-community/etos-python-test-runner:3.9.0",
                             },
                         ],
                     }
@@ -70,7 +70,7 @@ PERMUTATION_TERCC = {
                             },
                             {
                                 "key": "TEST_RUNNER",
-                                "value": "registry.nordix.org/eiffel/etos-python-test-runner:3.9.0",
+                                "value": "ghcr.io/eiffel-community/etos-python-test-runner:3.9.0",
                             },
                         ],
                     }
@@ -114,7 +114,7 @@ PERMUTATION_TERCC_SUB_SUITES = {
                             },
                             {
                                 "key": "TEST_RUNNER",
-                                "value": "registry.nordix.org/eiffel/etos-python-test-runner:3.9.0",
+                                "value": "ghcr.io/eiffel-community/etos-python-test-runner:3.9.0",
                             },
                         ],
                     },
@@ -136,7 +136,7 @@ PERMUTATION_TERCC_SUB_SUITES = {
                             },
                             {
                                 "key": "TEST_RUNNER",
-                                "value": "registry.nordix.org/eiffel/etos-python-test-runner:3.9.0",
+                                "value": "ghcr.io/eiffel-community/etos-python-test-runner:3.9.0",
                             },
                         ],
                     },
@@ -164,7 +164,7 @@ PERMUTATION_TERCC_SUB_SUITES = {
                             },
                             {
                                 "key": "TEST_RUNNER",
-                                "value": "registry.nordix.org/eiffel/etos-python-test-runner:3.9.0",
+                                "value": "ghcr.io/eiffel-community/etos-python-test-runner:3.9.0",
                             },
                         ],
                     },
@@ -186,7 +186,7 @@ PERMUTATION_TERCC_SUB_SUITES = {
                             },
                             {
                                 "key": "TEST_RUNNER",
-                                "value": "registry.nordix.org/eiffel/etos-python-test-runner:3.9.0",
+                                "value": "ghcr.io/eiffel-community/etos-python-test-runner:3.9.0",
                             },
                         ],
                     },
@@ -230,7 +230,7 @@ TERCC = {
                             },
                             {
                                 "key": "TEST_RUNNER",
-                                "value": "registry.nordix.org/eiffel/etos-python-test-runner:3.9.0",
+                                "value": "ghcr.io/eiffel-community/etos-python-test-runner:3.9.0",
                             },
                         ],
                     }
@@ -274,7 +274,7 @@ TERCC_SUB_SUITES = {
                             },
                             {
                                 "key": "TEST_RUNNER",
-                                "value": "registry.nordix.org/eiffel/etos-python-test-runner:3.9.0",
+                                "value": "ghcr.io/eiffel-community/etos-python-test-runner:3.9.0",
                             },
                         ],
                     },
@@ -296,7 +296,7 @@ TERCC_SUB_SUITES = {
                             },
                             {
                                 "key": "TEST_RUNNER",
-                                "value": "registry.nordix.org/eiffel/etos-python-test-runner:3.9.0",
+                                "value": "ghcr.io/eiffel-community/etos-python-test-runner:3.9.0",
                             },
                         ],
                     },
