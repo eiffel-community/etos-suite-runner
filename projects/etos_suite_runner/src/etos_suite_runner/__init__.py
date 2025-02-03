@@ -22,8 +22,8 @@ from etos_lib.logging.logger import setup_logging
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import (
+    DEPLOYMENT_ENVIRONMENT,
     SERVICE_NAME,
-    SERVICE_NAMESPACE,
     SERVICE_VERSION,
     OTELResourceDetector,
     ProcessResourceDetector,
@@ -60,7 +60,7 @@ if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
         {
             SERVICE_NAME: "etos-suite-runner",
             SERVICE_VERSION: VERSION,
-            SERVICE_NAMESPACE: ENVIRONMENT,
+            DEPLOYMENT_ENVIRONMENT: ENVIRONMENT,
         },
     )
 

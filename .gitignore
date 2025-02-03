@@ -41,6 +41,9 @@ coverage.xml
 build/*
 dist/*
 sdist/*
+projects/etos_suite_runner/build/*
+projects/etos_suite_runner/dist/*
+projects/etos_suite_runner/sdist/*
 docs/api/*
 docs/_rst/*
 docs/_build/*
