@@ -196,12 +196,13 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
         # Passing variables as keyword argument to make it easier to transition to a function where
         # jsontas is not required.
         jsontas = JsonTas()
-        span_name = "release_full_environment"
+        span_name = "release_full_environment (ESR)"
         with self.otel_tracer.start_as_current_span(
             span_name,
             context=self.otel_context,
             kind=opentelemetry.trace.SpanKind.CLIENT,
         ):
+            self.logger.info("ESR._release_environment(): calling release_full_environment(), suite id: %s", self.params.testrun_id)
             status, message = release_full_environment(
                 etos=self.etos,
                 jsontas=jsontas,
