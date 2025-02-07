@@ -201,8 +201,8 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
             span_name,
             context=self.otel_context,
             kind=opentelemetry.trace.SpanKind.CLIENT,
-        ):
-            self.logger.info("ESR._release_environment(): calling release_full_environment(), suite id: %s", self.params.testrun_id)
+        ) as span:
+            span.set_attribute("ESR().params.testrun_id", self.params.testrun_id)
             status, message = release_full_environment(
                 etos=self.etos,
                 jsontas=jsontas,
