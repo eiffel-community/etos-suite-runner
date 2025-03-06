@@ -16,9 +16,9 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 dependencies = [
-	"eiffellib[rabbitmq]==2.4.1",
-    "fastapi==0.109.1",
-    "uvicorn==0.22.0",
+  "etos_lib==5.1.0",
+  "fastapi==0.109.1",
+  "uvicorn==0.22.0",
 ]
 
 [project.urls]
