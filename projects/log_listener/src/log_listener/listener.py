@@ -20,6 +20,7 @@ import logging
 import os
 import pathlib
 import threading
+import traceback
 import time
 from typing import Optional
 
@@ -82,7 +83,7 @@ class Listener(threading.Thread):
         except:  # pylint:disable=bare-except
             # A catch-all exception here because if v2 publish fails, this
             # function will be called again with the same event.
-            pass
+            traceback.print_exc()
 
     def __write(self, event: str, data: str) -> None:
         """Write an event, and its data, to a file."""
