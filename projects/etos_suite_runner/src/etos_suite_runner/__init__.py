@@ -22,7 +22,6 @@ from etos_lib.logging.logger import setup_logging
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import (
-    DEPLOYMENT_ENVIRONMENT,
     SERVICE_NAME,
     SERVICE_VERSION,
     OTELResourceDetector,
@@ -39,7 +38,6 @@ except PackageNotFoundError:
     VERSION = "Unknown"
 
 DEV = os.getenv("DEV", "false").lower() == "true"
-ENVIRONMENT = "development" if DEV else "production"
 os.environ["ENVIRONMENT_PROVIDER_DISABLE_LOGGING"] = "true"
 
 LOGGER = logging.getLogger(__name__)
@@ -60,7 +58,6 @@ if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
         {
             SERVICE_NAME: "etos-suite-runner",
             SERVICE_VERSION: VERSION,
-            DEPLOYMENT_ENVIRONMENT: ENVIRONMENT,
         },
     )
 
@@ -76,7 +73,7 @@ if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
     PROCESSOR = BatchSpanProcessor(EXPORTER)
     PROVIDER.add_span_processor(PROCESSOR)
     trace.set_tracer_provider(PROVIDER)
-    setup_logging("ETOS Suite Runner", VERSION, ENVIRONMENT, OTEL_RESOURCE)
+    setup_logging("ETOS Suite Runner", VERSION, OTEL_RESOURCE)
 else:
-    setup_logging("ETOS Suite Runner", VERSION, ENVIRONMENT)
+    setup_logging("ETOS Suite Runner", VERSION)
     LOGGER.info("OpenTelemetry not enabled. OTEL_COLLECTOR_HOST not set.")
