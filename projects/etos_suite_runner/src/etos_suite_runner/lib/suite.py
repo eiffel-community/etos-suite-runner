@@ -33,7 +33,7 @@ from etos_lib.kubernetes.schemas.testrun import Suite
 from jsontas.jsontas import JsonTas
 import opentelemetry
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
-from requests.exceptions import ConnectionError as RequestsConnectionError
+from requests.exceptions import ConnectionError as RequestsConnectionError, HTTPError
 
 from .esr_parameters import ESRParameters
 from .exceptions import EnvironmentProviderException
@@ -149,6 +149,14 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
             except RequestsConnectionError:
                 self.logger.exception(
                     "Could not communicate with the status check endpoint for %r (%r)",
+                    name,
+                    request.get("url"),
+                )
+                return False
+            except HTTPError as http_error:
+                self.logger.error(
+                    "Got error code %r when communicating with %r (%r)",
+                    http_error.response.status_code,
                     name,
                     request.get("url"),
                 )
