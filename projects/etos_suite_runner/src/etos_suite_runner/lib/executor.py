@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Executor handler module."""
+
 import logging
 import os
 from json import JSONDecodeError, dumps
@@ -23,6 +24,7 @@ from cryptography.fernet import Fernet
 from etos_lib import ETOS
 from etos_lib.opentelemetry.semconv import Attributes as SemConvAttributes
 from opentelemetry import trace
+from requests import Response
 from requests.auth import HTTPBasicAuth, HTTPDigestAuth
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from requests.exceptions import HTTPError
@@ -70,7 +72,10 @@ class Executor(OpenTelemetryBase):  # pylint:disable=too-few-public-methods
         return Fernet(key).decrypt(password_value).decode()
 
     def __auth(
-        self, username: str, password: str, type: str = "basic"  # pylint:disable=redefined-builtin
+        self,
+        username: str,
+        password: str,
+        type: str = "basic",  # pylint:disable=redefined-builtin
     ) -> Union[HTTPBasicAuth, HTTPDigestAuth]:
         """Create an authentication for HTTP request.
 
@@ -84,6 +89,15 @@ class Executor(OpenTelemetryBase):  # pylint:disable=too-few-public-methods
             return HTTPBasicAuth(username, password)
         return HTTPDigestAuth(username, password)
 
+    def do_request(self, request: dict) -> Response:
+        """Make an HTTP request based on a request dictionary."""
+        if request.get("auth"):
+            request["auth"] = self.__auth(**request["auth"])
+        method = getattr(self.etos.http, request.pop("method").lower())
+        response = method(**request)
+        response.raise_for_status()
+        return response
+
     def run_tests(self, test_suite: dict) -> None:
         """Run tests in jenkins.
 
@@ -91,9 +105,6 @@ class Executor(OpenTelemetryBase):  # pylint:disable=too-few-public-methods
         """
         executor = test_suite.get("executor")
         request = executor.get("request")
-        if request.get("auth"):
-            request["auth"] = self.__auth(**request["auth"])
-        method = getattr(self.etos.http, request.pop("method").lower())
         span_name = "start_execution_space"
         with self.tracer.start_as_current_span(span_name, kind=trace.SpanKind.CLIENT) as span:
             span.set_attribute(
@@ -101,8 +112,7 @@ class Executor(OpenTelemetryBase):  # pylint:disable=too-few-public-methods
             )
             span.set_attribute("http.request.body", dumps(request))
             try:
-                response = method(**request)
-                response.raise_for_status()
+                response = self.do_request(request)
             except HTTPError as http_error:
                 try:
                     exc = TestStartException(http_error.response.json())
