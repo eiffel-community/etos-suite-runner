@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Test suite handler."""
+
 import os
 import json
 import logging
@@ -32,6 +33,7 @@ from etos_lib.kubernetes.schemas.testrun import Suite
 from jsontas.jsontas import JsonTas
 import opentelemetry
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+from requests.exceptions import ConnectionError as RequestsConnectionError
 
 from .esr_parameters import ESRParameters
 from .exceptions import EnvironmentProviderException
@@ -121,6 +123,43 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
             return self.test_suite_finished.get("data", {}).get("testSuiteOutcome", {})
         return {}
 
+    def _environment_active(self) -> bool:
+        """Check the status of the test environment."""
+        status_requests = (
+            (
+                self.environment["iut"].get("provider_id", "iut_provider"),
+                self.environment["iut"].get("status_request"),
+            ),
+            (
+                self.environment["executor"].get("provider_id", "execution_space_provider"),
+                self.environment["executor"].get("status_request"),
+            ),
+            (
+                self.environment["log_area"].get("provider_id", "log_area_provider"),
+                self.environment["log_area"].get("status_request"),
+            ),
+        )
+        executor = Executor(self.etos)
+        for name, request in status_requests:
+            if request is None:
+                continue
+            try:
+                response = executor.do_request(request)
+                response.json()
+            except RequestsConnectionError:
+                self.logger.exception(
+                    "Could not communicate with the status check endpoint for %r (%r)",
+                    name,
+                    request.get("url"),
+                )
+                return False
+            except json.JSONDecodeError:
+                self.logger.exception(
+                    "Failed to parse the response from for %r (%r)", name, request.get("url")
+                )
+                return False
+        return True
+
     def _start(self, identifier: str) -> None:
         """Start ETR for this sub suite.
 
@@ -155,6 +194,12 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
                     self.request_finished_event()
                     if self.finished:
                         self.logger.info("ETOS test runner has finished", extra={"user_log": True})
+                        break
+                    if not self._environment_active():
+                        self.logger.error(
+                            "ETOS test environment is no longer active! Canceling.",
+                            extra={"user_log": True},
+                        )
                         break
             finally:
                 self.release(identifier)
