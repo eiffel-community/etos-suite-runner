@@ -20,11 +20,13 @@ import logging
 import threading
 import time
 from typing import Iterator, Union
+from urllib3.util import Retry
 
 from eiffellib.events import EiffelTestSuiteStartedEvent, EiffelEnvironmentDefinedEvent
 from environment_provider.lib.registry import ProviderRegistry
 from environment_provider.environment import release_environment
 from etos_lib import ETOS
+from etos_lib.lib.http import Http
 from etos_lib.logging.logger import FORMAT_CONFIG
 from etos_lib.opentelemetry.semconv import Attributes as SemConvAttributes
 from etos_lib.kubernetes import Kubernetes, Environment
@@ -417,7 +419,18 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
         uri = environment["data"]["uri"]
         json_header = {"Accept": "application/json"}
 
-        response = self.etos.http.get(uri, headers=json_header)
+        max_retries = 10
+        retry_parameters = Retry(
+            total=None,
+            read=max_retries,
+            connect=max_retries,
+            status=max_retries,
+            backoff_factor=1,
+            other=0,
+            status_forcelist=list(Retry.RETRY_AFTER_STATUS_CODES),
+        )
+        http_client = Http(retry=retry_parameters)
+        response = http_client.get(uri, headers=json_header)
         response.raise_for_status()
         return response.json()
 
