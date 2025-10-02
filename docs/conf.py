@@ -39,9 +39,8 @@ except FileNotFoundError:
     pass
 
 try:
-    cmd_line_template = "sphinx-apidoc -f -o {outputdir} {moduledir}"
-    cmd_line = cmd_line_template.format(outputdir=output_dir, moduledir=module_dir)
-    args = cmd_line.split(" ")[1:]  # Remove first argument (sphinx-apidoc)
+    args_template = "-f -o {outputdir} {moduledir}"
+    args = args_template.format(outputdir=output_dir, moduledir=module_dir)
     apidoc.main(args)
 except Exception as e:
     print("Running `sphinx-apidoc` failed!\n{}".format(e))
