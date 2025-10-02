@@ -14,7 +14,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: Apache Software License"
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 dependencies = [
 	"eiffellib[rabbitmq]==2.4.1",
     "fastapi==0.109.1",
