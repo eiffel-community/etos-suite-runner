@@ -14,26 +14,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Test suite handler."""
-import os
 import json
 import logging
+import os
 import threading
 import time
 from typing import Iterator, Union
-from urllib3.util import Retry
 
-from eiffellib.events import EiffelTestSuiteStartedEvent, EiffelEnvironmentDefinedEvent
-from environment_provider.lib.registry import ProviderRegistry
+import opentelemetry
+from eiffellib.events import EiffelEnvironmentDefinedEvent, EiffelTestSuiteStartedEvent
 from environment_provider.environment import release_environment
+from environment_provider.lib.registry import ProviderRegistry
 from etos_lib import ETOS
+from etos_lib.kubernetes import Environment, Kubernetes
+from etos_lib.kubernetes.schemas.testrun import Suite
 from etos_lib.lib.http import Http
 from etos_lib.logging.logger import FORMAT_CONFIG
 from etos_lib.opentelemetry.semconv import Attributes as SemConvAttributes
-from etos_lib.kubernetes import Kubernetes, Environment
-from etos_lib.kubernetes.schemas.testrun import Suite
 from jsontas.jsontas import JsonTas
-import opentelemetry
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+from urllib3.util import Retry
 
 from .esr_parameters import ESRParameters
 from .exceptions import EnvironmentProviderException
@@ -136,17 +136,20 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
             span.set_attribute(SemConvAttributes.SUBSUITE_ID, identifier)
             FORMAT_CONFIG.identifier = identifier
             self.logger.info("Starting up the ETOS test runner", extra={"user_log": True})
-            executor = Executor(self.etos)
-            try:
-                executor.run_tests(self.environment)
-            except TestStartException as exception:
-                self.test_start_exception_caught = True
-                self.logger.error(
-                    "Failed to start sub suite: %s", exception.error, extra={"user_log": True}
-                )
-                self._record_exception(exception)
-                raise
-            self.logger.info("ETR triggered.")
+            if self.environment.get("executor", {}).get("request") is not None:
+                executor = Executor(self.etos)
+                try:
+                    executor.run_tests(self.environment)
+                except TestStartException as exception:
+                    self.test_start_exception_caught = True
+                    self.logger.error(
+                        "Failed to start sub suite: %s",
+                        exception.error,
+                        extra={"user_log": True},
+                    )
+                    self._record_exception(exception)
+                    raise
+                self.logger.info("ETR triggered.")
             timeout = time.time() + self.etos.debug.default_test_result_timeout
             try:
                 while time.time() < timeout:
