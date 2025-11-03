@@ -19,32 +19,32 @@
 import logging
 import os
 import signal
-import time
 import threading
+import time
 import traceback
 from uuid import uuid4
 
+import opentelemetry
 from eiffellib.events import (
     EiffelActivityTriggeredEvent,
     EiffelTestExecutionRecipeCollectionCreatedEvent,
 )
-from environment_provider.environment_provider import EnvironmentProvider
 from environment_provider.environment import release_full_environment
+from environment_provider.environment_provider import EnvironmentProvider
 from etos_lib import ETOS
-from etos_lib.logging.logger import FORMAT_CONFIG
 from etos_lib.kubernetes.schemas.testrun import Suite
+from etos_lib.logging.logger import FORMAT_CONFIG
 from jsontas.jsontas import JsonTas
-import opentelemetry
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 from etos_suite_runner.lib.result import Result
 
 from .lib.esr_parameters import ESRParameters
+from .lib.events import EventPublisher
 from .lib.exceptions import EnvironmentProviderException
 from .lib.graphql import request_tercc
+from .lib.otel_tracing import OpenTelemetryBase, get_current_context
 from .lib.runner import SuiteRunner
-from .lib.otel_tracing import get_current_context, OpenTelemetryBase
-from .lib.events import EventPublisher
 
 # Remove spam from pika.
 logging.getLogger("pika").setLevel(logging.WARNING)
@@ -110,7 +110,7 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
                             reason = condition.get("reason", "").lower()
                             if status == "false" and reason == "failed":
                                 failed.append(condition)
-                            if status == "true" and reason == "done":
+                            if status == "true" and reason in ("done", "completed"):
                                 success.append(condition)
                 if found and len(failed) > 0:
                     for condition in failed:
