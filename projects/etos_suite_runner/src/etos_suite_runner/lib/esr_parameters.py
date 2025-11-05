@@ -14,18 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ESR parameters module."""
+
 import json
 import logging
 import os
-from uuid import uuid4
 from threading import Lock
-from typing import Union, Optional
+from typing import Optional, Union
+from uuid import uuid4
 
-from etos_lib import ETOS
-from etos_lib.kubernetes.schemas.testrun import Suite
-from etos_lib.kubernetes.schemas.environment import Environment as EnvironmentSchema
-from etos_lib.kubernetes import Kubernetes, Environment, TestRun
 from eiffellib.events import EiffelTestExecutionRecipeCollectionCreatedEvent
+from etos_lib import ETOS
+from etos_lib.kubernetes import Environment, Kubernetes, TestRun
+from etos_lib.kubernetes.schemas.environment import Environment as EnvironmentSchema
+from etos_lib.kubernetes.schemas.testrun import Suite
 from packageurl import PackageURL
 
 from .graphql import request_artifact_created
@@ -84,13 +85,16 @@ class ESRParameters:
             )
         return _id
 
-    @property
-    def environments(self) -> list[EnvironmentSchema]:
+    def environments(self, test_suite_started_id: str) -> list[EnvironmentSchema]:
         """Environments to run tests in."""
         environment_client = Environment(Kubernetes())
+        label_selector = (
+            f"etos.eiffel-community.github.io/id={self.testrun_id},"
+            f"etos.eiffel-community.github.io/suite-id={test_suite_started_id}"
+        )
         response = environment_client.client.get(
             namespace=environment_client.namespace,
-            label_selector=f"etos.eiffel-community.github.io/id={self.testrun_id}",
+            label_selector=label_selector,
         )  # type:ignore
 
         environments = []
