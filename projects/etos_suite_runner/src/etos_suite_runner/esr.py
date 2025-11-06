@@ -110,6 +110,10 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
                             reason = condition.get("reason", "").lower()
                             if status == "false" and reason == "failed":
                                 failed.append(condition)
+                            # The reason was changed to 'completed' in the following change
+                            # https://github.com/eiffel-community/etos/pull/449
+                            # Support both 'done' and 'completed' since which reason is used
+                            # depends on the version of the ETOS controller that is being used.
                             if status == "true" and reason in ("done", "completed"):
                                 success.append(condition)
                 if found and len(failed) > 0:
