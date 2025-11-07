@@ -217,9 +217,7 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
     def release(self, testrun_id) -> None:
         """Release this sub suite."""
         self.logger.info(
-            "Check in test environment %r",
-            self.environment["id"],
-            extra={"user_log": True},
+            "Check in test environment %r", self.environment["id"], extra={"user_log": True}
         )
         # Running as part of ETOS controller
         if self.controller:
@@ -229,9 +227,7 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
 
         if not success:
             self.logger.exception(
-                "Failed to check in %r",
-                self.environment["id"],
-                extra={"user_log": True},
+                "Failed to check in %r", self.environment["id"], extra={"user_log": True}
             )
             return
         self.logger.info("Checked in %r", self.environment["id"], extra={"user_log": True})
@@ -309,8 +305,7 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
                     sub_suite_definition = self._download_sub_suite(environment)
                     if sub_suite_definition is None:
                         raise EnvironmentProviderException(
-                            "URL to sub suite is missing",
-                            self.etos.config.get("task_id"),
+                            "URL to sub suite is missing", self.etos.config.get("task_id")
                         )
                     sub_suite_definition["id"] = environment["meta"]["id"]
                     yield sub_suite_definition
@@ -487,8 +482,7 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
             )
             for sub_suite_definition in self.sub_suite_environments:
                 self.logger.info(
-                    "Environment received. Starting up a sub suite",
-                    extra={"user_log": True},
+                    "Environment received. Starting up a sub suite", extra={"user_log": True}
                 )
                 sub_suite = SubSuite(
                     self.etos,
