@@ -339,16 +339,6 @@ class TestSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribut
                 if environment.spec.sub_suite_id in environments:
                     continue
 
-                # Send eiffel event for the ETR.
-                event = EiffelEnvironmentDefinedEvent()
-                event.meta.event_id = environment.metadata.name
-                url = f"{os.getenv('ETOS_API')}/v1alpha/testrun/{environment.metadata.name}"
-                self.etos.events.send(
-                    event,
-                    {"CONTEXT": self.test_suite_started_id},
-                    {"name": environment.spec.name, "uri": url},
-                )
-
                 environments.append(environment.spec.sub_suite_id)
                 executor = environment.spec.executor
                 yield {
