@@ -17,7 +17,6 @@
 
 import json
 import logging
-import os
 import threading
 import time
 from typing import Iterator, Union
