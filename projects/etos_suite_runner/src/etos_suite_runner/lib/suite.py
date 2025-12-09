@@ -23,7 +23,7 @@ import time
 from typing import Iterator, Union
 
 import opentelemetry
-from eiffellib.events import EiffelEnvironmentDefinedEvent, EiffelTestSuiteStartedEvent
+from eiffellib.events import EiffelTestSuiteStartedEvent
 from environment_provider.environment import release_environment
 from environment_provider.lib.registry import ProviderRegistry
 from etos_lib import ETOS
