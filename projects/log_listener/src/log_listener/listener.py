@@ -14,15 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Log listener module."""
+
 import json
 import logging
 import os
 import pathlib
 import threading
+import traceback
 import time
 from typing import Optional
 
 from eiffellib.events import EiffelTestExecutionRecipeCollectionCreatedEvent
+from etos_lib.lib.config import Config
+from etos_lib.messaging.events import parse
+from etos_lib.messaging.v2alpha.publisher import Publisher
 
 from .log_subscriber import LogSubscriber
 
@@ -47,6 +52,9 @@ class Listener(threading.Thread):
         with self.lock:
             with self.event_file.open() as _event_file:
                 self.id = len(_event_file.readlines()) + 1
+        self.v2client = Publisher(
+            Config().etos_rabbitmq_publisher_uri(), Config().etos_stream_name()
+        )
 
     @property
     def identifier(self) -> str:
@@ -69,7 +77,13 @@ class Listener(threading.Thread):
         """Get a new event from the internal RabbitMQ bus and write it to file."""
         if event.get("event") is None:
             event = {"event": "message", "data": event}
-        self.__write(**event)
+        self.__write(event.get("event", ""), event.get("data", ""))
+        try:
+            self.v2client.publish(self.identifier, parse(event))
+        except:  # pylint:disable=bare-except
+            # A catch-all exception here because if v2 publish fails, this
+            # function will be called again with the same event.
+            traceback.print_exc()
 
     def __write(self, event: str, data: str) -> None:
         """Write an event, and its data, to a file."""
@@ -119,8 +133,10 @@ class Listener(threading.Thread):
         self.rabbitmq.subscribe("*", self.new_event)
         self.rabbitmq.start()
         self.rabbitmq.wait_start()
+        self.v2client.start()
         while self.rabbitmq.is_alive() and not self.__stop:
             time.sleep(0.1)
+        self.v2client.close()
         self.rabbitmq.stop()
         self.rabbitmq.wait_close()
 
