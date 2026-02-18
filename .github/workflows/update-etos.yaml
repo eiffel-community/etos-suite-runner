@@ -1,0 +1,93 @@
+name: Update ETOS defaults
+
+on:
+  workflow_call:
+    inputs:
+      suite-runner-image:
+        description: 'ETOS suite runner image'
+        required: true
+        type: string
+      suite-runner-version:
+        description: 'ETOS suite runner version'
+        required: true
+        type: string
+      log-listener-image:
+        description: 'ETOS log listener image'
+        required: true
+        type: string
+      log-listener-version:
+        description: 'ETOS log listener version'
+        required: true
+        type: string
+
+env:
+  REPOSITORY_OWNER: eiffel-community
+  ETOS_REPOSITORY: etos
+  ETOS_SUITE_RUNNER_REPOSITORY: etos-suite-runner
+
+jobs:
+  update-etos-defaults:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - name: Get commit metadata
+      run: |
+        COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+        COMMIT_MESSAGE_HEADER=$(git log -1 --pretty=%B | head -n 1)
+        echo "COMMIT_MESSAGE_HEADER=${COMMIT_MESSAGE_HEADER}" >> $GITHUB_ENV
+        echo "COMMIT=${{ github.sha }}" >> $GITHUB_ENV
+    - name: Get commit message
+      # Newlines are not supported in environment variables directly, so we use a heredoc to set it.
+      # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#multiline-strings
+      # Found no way to integrate this in the step above, so it will have to be done in a separate step.
+      run: |
+        {
+          echo 'COMMIT_MESSAGE<<EOF'
+          git log -1 --pretty=%B
+          echo EOF
+        } >> "$GITHUB_ENV"
+    - name: Generate a token
+      id: generate-token
+      uses: actions/create-github-app-token@v2
+      with:
+        owner: ${{ env.REPOSITORY_OWNER }}
+        repositories: ${{ env.ETOS_REPOSITORY }}
+        app-id: ${{ vars.ETOS_PR_APP_ID }}
+        private-key: ${{ secrets.ETOS_PR_APP_PRIVATE_KEY }}
+    - uses: actions/checkout@v6
+      with:
+        repository: ${{ env.REPOSITORY_OWNER }}/${{ env.ETOS_REPOSITORY }}
+        token: ${{ steps.generate-token.outputs.token }}
+    - name: Update manifests
+      uses: fjogeleit/yaml-update-action@main
+      with:
+        commitChange: false
+        token: ${{ steps.generate-token.outputs.token }}
+        changes: |
+          {
+            "defaults/suite_runner.yaml": {
+              ".image": "${{ inputs.suite-runner-image }}",
+              ".version": "${{ inputs.suite-runner-version }}"
+            },
+            "defaults/log_listener.yaml": {
+              ".image": "${{ inputs.log-listener-image }}",
+              ".version": "${{ inputs.log-listener-version }}"
+            }
+          }
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v8
+      with:
+        token: ${{ steps.generate-token.outputs.token }}
+        commit-message: ${{ env.COMMIT_MESSAGE }}
+        title: "Integrate \"${{ env.COMMIT_MESSAGE_HEADER }}\""
+        body: "Automated update of ETOS images for Suite Runner and Log Listener\n
+
+        Commit: https://github.com/${{ env.REPOSITORY_OWNER }}/${{ env.ETOS_SUITE_RUNNER_REPOSITORY }}/commit/${{ env.COMMIT }}\n
+
+        Changes included:
+
+        - ETOS Suite Runner: ${{ inputs.suite-runner-image }}:${{ inputs.suite-runner-version }}\n
+        - ETOS Log Listener: ${{ inputs.log-listener-image }}:${{ inputs.log-listener-version }}\n
+        sign-commits: true
+        branch: "update-etos-suite-runner-${{ github.run_id }}"
+        labels: automated-pr, dependencies, etos-suite-runner

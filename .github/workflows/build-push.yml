@@ -7,27 +7,27 @@ on:
       - closed
   workflow_dispatch:
 
+env:
+  MAIN_BRANCH: main
 permissions:
   contents: write
   packages: write
 
 jobs:
-  build_esr:
+  build-suite-runner:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true }}
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
     - name: Build app image
       run: docker build . --tag image
-
     - name: Login to GitHub Container Registry
       uses: docker/login-action@v3
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Push app image
+    - name: Image ID
       id: image
       run: |
         IMAGE_ID=ghcr.io/eiffel-community/etos-suite-runner
@@ -36,31 +36,32 @@ jobs:
         # Strip "v" prefix from tag name
         [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
         # Use Docker `latest` tag convention
-        [ "$VERSION" == "main" ] && VERSION=$(echo ${{ github.sha }} | cut -c1-8)
-        echo IMAGE_ID=$IMAGE_ID
+        [ "$VERSION" == "$MAIN_BRANCH" ] && VERSION=$(echo ${{ github.sha }} | cut -c1-8)
         echo VERSION=$VERSION
-        docker tag image $IMAGE_ID:$VERSION
-        docker push $IMAGE_ID:$VERSION
-        echo $IMAGE_ID:$VERSION
-        echo "::set-output name=version::$VERSION"
+        echo "image=$IMAGE_ID" >> $GITHUB_OUTPUT
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+    - name: Push app image
+      run: |
+        docker tag image ${{ steps.image.outputs.image }}:${{ steps.image.outputs.version}}
+        echo "Pushing image ${{ steps.image.outputs.image }}:${{ steps.image.outputs.version }}"
+        docker push ${{ steps.image.outputs.image }}:${{ steps.image.outputs.version }}
     outputs:
-      esrVersion: ${{ steps.image.outputs.version }}
-  build_listener:
+      suiteRunnerImage: ${{ steps.image.outputs.image }}
+      suiteRunnerVersion: ${{ steps.image.outputs.version }}
+  build-log-listener:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true }}
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
     - name: Build app image
       run: docker build . -f Dockerfile.log_listener --tag image
-
     - name: Login to GitHub Container Registry
       uses: docker/login-action@v3
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Push app image
+    - name: Image ID
       id: image
       run: |
         IMAGE_ID=ghcr.io/eiffel-community/etos-log-listener
@@ -69,31 +70,24 @@ jobs:
         # Strip "v" prefix from tag name
         [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
         # Use Docker `latest` tag convention
-        [ "$VERSION" == "main" ] && VERSION=$(echo ${{ github.sha }} | cut -c1-8)
-        echo IMAGE_ID=$IMAGE_ID
+        [ "$VERSION" == "$MAIN_BRANCH" ] && VERSION=$(echo ${{ github.sha }} | cut -c1-8)
         echo VERSION=$VERSION
-        docker tag image $IMAGE_ID:$VERSION
-        docker push $IMAGE_ID:$VERSION
-        echo $IMAGE_ID:$VERSION
-        echo "::set-output name=version::$VERSION"
+        echo "image=$IMAGE_ID" >> $GITHUB_OUTPUT
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+    - name: Push app image
+      run: |
+        docker tag image ${{ steps.image.outputs.image }}:${{ steps.image.outputs.version}}
+        echo "Pushing image ${{ steps.image.outputs.image }}:${{ steps.image.outputs.version }}"
+        docker push ${{ steps.image.outputs.image }}:${{ steps.image.outputs.version }}
     outputs:
+      logListenerImage: ${{ steps.image.outputs.image }}
       logListenerVersion: ${{ steps.image.outputs.version }}
-
-  update_manifests:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true }}
-    runs-on: ubuntu-latest
-    needs: [build_esr, build_listener]
-    steps:
-    - uses: actions/checkout@v3
-    - name: Update manifests
-      uses: fjogeleit/yaml-update-action@main
-      with:
-        valueFile: 'manifests/base/kustomization.yaml'
-        changes: |
-          {
-            "configMapGenerator[0].literals[0]": "SUITE_RUNNER=ghcr.io/eiffel-community/etos-suite-runner:${{ needs.build_esr.outputs.esrVersion }}",
-            "configMapGenerator[0].literals[1]": "LOG_LISTENER=ghcr.io/eiffel-community/etos-log-listener:${{ needs.build_listener.outputs.logListenerVersion }}"
-          }
-        branch: main
-        commitChange: true
-        message: Updating ESR image to ${{ needs.build_esr.outputs.esrVersion }} and log listener image to ${{ needs.build_listener.outputs.logListenerVersion }}
+  run-update-etos-defaults:
+    needs: [build-suite-runner, build-listener]
+    uses: ./.github/workflows/update-etos.yaml
+    secrets: inherit
+    with:
+      suite-runner-image: ${{ needs.build-suite-runner.outputs.suiteRunnerImage }}
+      suite-runner-version: ${{ needs.build-suite-runner.outputs.suiteRunnerVersion }}
+      log-listener-image: ${{ needs.build-log-listener.outputs.logListenerImage }}
+      log-listener-version: ${{ needs.build-log-listener.outputs.logListenerVersion }}
