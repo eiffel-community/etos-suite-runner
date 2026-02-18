@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ETOS suite runner log listener and webserver."""
+
 import logging
 import pathlib
 import signal

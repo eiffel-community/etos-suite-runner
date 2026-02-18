@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ETOS suite runner module."""
+
 import logging
 import os
 from importlib.metadata import PackageNotFoundError, version

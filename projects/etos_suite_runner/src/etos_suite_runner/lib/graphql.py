@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Graphql query handler module."""
+
 from .graphql_queries import (
     TEST_SUITE_STARTED,
     TEST_SUITE_FINISHED,

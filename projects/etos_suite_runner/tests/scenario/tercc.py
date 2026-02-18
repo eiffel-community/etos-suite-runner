@@ -15,7 +15,6 @@
 # limitations under the License.
 """TERCCs to be used in testing."""
 
-
 PERMUTATION_TERCC = {
     "data": {
         "selectionStrategy": {"id": "6e922b03-1323-42ca-9cf8-34427ea13f2b"},

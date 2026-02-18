@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Log filter module will log only non-duplicate messages."""
+
 from collections import deque
 
 
