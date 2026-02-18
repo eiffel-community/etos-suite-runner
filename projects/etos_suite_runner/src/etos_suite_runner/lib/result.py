@@ -17,7 +17,6 @@
 
 from pydantic import BaseModel, field_validator, ValidationInfo
 
-
 # TODO Move the result struct to ETOS library.
 
 

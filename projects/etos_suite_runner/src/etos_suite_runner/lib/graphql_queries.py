@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Graphql queries."""
+
 TEST_SUITE_STARTED = """
 {
   testSuiteStarted(search:"{'links.type': 'CAUSE', 'links.target': '%s'}") {
