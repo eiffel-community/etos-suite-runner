@@ -87,7 +87,7 @@ jobs:
         Changes included:
 
         - ETOS Suite Runner: ${{ inputs.suite-runner-image }}:${{ inputs.suite-runner-version }}\n
-        - ETOS Log Listener: ${{ inputs.log-listener-image }}:${{ inputs.log-listener-version }}\n
+        - ETOS Log Listener: ${{ inputs.log-listener-image }}:${{ inputs.log-listener-version }}"
         sign-commits: true
         branch: "update-etos-suite-runner-${{ github.run_id }}"
         labels: automated-pr, dependencies, etos-suite-runner
