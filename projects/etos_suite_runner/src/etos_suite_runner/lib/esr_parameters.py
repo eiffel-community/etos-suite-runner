@@ -95,7 +95,7 @@ class ESRParameters:
         response = environment_client.client.get(
             namespace=environment_client.namespace,
             label_selector=label_selector,
-        )  # type:ignore
+        )  # type: ignore
 
         environments = []
         for environment in response.to_dict().get("items", []):
@@ -111,7 +111,7 @@ class ESRParameters:
         response = environment_requests_client.get(
             namespace=namespace,
             label_selector=f"etos.eiffel-community.github.io/id={self.testrun_id}",
-        )  # type:ignore
+        )  # type: ignore
         return response.items
 
     def main_suite_ids(self) -> list[str]:

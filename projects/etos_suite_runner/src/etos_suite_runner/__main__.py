@@ -26,7 +26,6 @@ from etos_lib import ETOS
 
 from .esr import ESR
 
-
 LOGGER = logging.getLogger(__name__)
 
 
