@@ -83,7 +83,7 @@ jobs:
       logListenerImage: ${{ steps.image.outputs.image }}
       logListenerVersion: ${{ steps.image.outputs.version }}
   run-update-etos-defaults:
-    needs: [build-suite-runner, build-listener]
+    needs: [build-suite-runner, build-log-listener]
     uses: ./.github/workflows/update-etos.yaml
     secrets: inherit
     with:
