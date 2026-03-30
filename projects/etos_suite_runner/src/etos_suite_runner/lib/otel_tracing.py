@@ -18,10 +18,11 @@
 """OpenTelemetry-related code."""
 
 import logging
-import os
 
 import opentelemetry
-from opentelemetry.propagators.textmap import Getter
+from opentelemetry.baggage.propagation import W3CBaggagePropagator
+from opentelemetry.propagators._envcarrier import EnvironmentGetter
+from opentelemetry.propagators.composite import CompositePropagator
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 LOGGER = logging.getLogger(__name__)
@@ -40,30 +41,12 @@ class OpenTelemetryBase:
         span.set_status(opentelemetry.trace.Status(opentelemetry.trace.StatusCode.ERROR))
 
 
-class EnvVarContextGetter(Getter):
-    """OpenTelemetry context getter class for environment variables."""
-
-    def get(self, carrier, key):
-        """Get value using the given carrier variable and key."""
-        value = os.getenv(carrier)
-        if value is not None and value != "":
-            pairs = value.split(",")
-            for pair in pairs:
-                k, v = pair.split("=", 1)
-                if k == key:
-                    return [v]
-        return []
-
-    def keys(self, carrier):
-        """Get keys of the given carrier variable."""
-        value = os.getenv(carrier)
-        if value is not None:
-            return [pair.split("=")[0] for pair in value.split(",") if "=" in pair]
-        return []
-
-
 def get_current_context() -> opentelemetry.context.context.Context:
-    """Get current context propagated via environment variable OTEL_CONTEXT."""
-    propagator = TraceContextTextMapPropagator()
-    ctx = propagator.extract(carrier="OTEL_CONTEXT", getter=EnvVarContextGetter())
-    return ctx
+    """Get current context propagated via environment variables."""
+    propagator = CompositePropagator(
+        (
+            TraceContextTextMapPropagator(),
+            W3CBaggagePropagator(),
+        )
+    )
+    return propagator.extract(carrier={}, getter=EnvironmentGetter())
