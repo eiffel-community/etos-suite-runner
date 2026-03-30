@@ -18,11 +18,13 @@
 """OpenTelemetry-related code."""
 
 import logging
+import os
 
 import opentelemetry
 from opentelemetry.baggage.propagation import W3CBaggagePropagator
 from opentelemetry.propagators._envcarrier import EnvironmentGetter
 from opentelemetry.propagators.composite import CompositePropagator
+from opentelemetry.propagators.textmap import Getter
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 LOGGER = logging.getLogger(__name__)
@@ -41,6 +43,28 @@ class OpenTelemetryBase:
         span.set_status(opentelemetry.trace.Status(opentelemetry.trace.StatusCode.ERROR))
 
 
+class EnvVarContextGetter(Getter):
+    """OpenTelemetry context getter class for environment variables."""
+
+    def get(self, carrier, key):
+        """Get value using the given carrier variable and key."""
+        value = os.getenv(carrier)
+        if value is not None and value != "":
+            pairs = value.split(",")
+            for pair in pairs:
+                k, v = pair.split("=", 1)
+                if k == key:
+                    return [v]
+        return []
+
+    def keys(self, carrier):
+        """Get keys of the given carrier variable."""
+        value = os.getenv(carrier)
+        if value is not None:
+            return [pair.split("=")[0] for pair in value.split(",") if "=" in pair]
+        return []
+
+
 def get_current_context() -> opentelemetry.context.context.Context:
     """Get current context propagated via environment variables."""
     propagator = CompositePropagator(
@@ -49,4 +73,17 @@ def get_current_context() -> opentelemetry.context.context.Context:
             W3CBaggagePropagator(),
         )
     )
-    return propagator.extract(carrier={}, getter=EnvironmentGetter())
+    ctx = opentelemetry.context.get_current()
+    old_style_traceparent = EnvironmentGetter().get({}, "OTEL_CONTEXT")
+    if old_style_traceparent is not None:
+        LOGGER.warning(
+            "OTEL_CONTEXT environment variable is deprecated; use traceparent and baggage variables instead."
+        )
+        # = TraceContextTextMapPropagator()
+        ctx = propagator.extract(carrier="OTEL_CONTEXT", context=ctx, getter=EnvVarContextGetter())
+    ctx = propagator.extract(carrier={}, context=ctx, getter=EnvironmentGetter())
+    return ctx
+
+
+if __name__ == "__main__":
+    print(get_current_context())
