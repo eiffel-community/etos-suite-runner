@@ -85,5 +85,3 @@ def get_current_context() -> opentelemetry.context.context.Context:
     return ctx
 
 
-if __name__ == "__main__":
-    print(get_current_context())
