@@ -77,7 +77,8 @@ def get_current_context() -> opentelemetry.context.context.Context:
     old_style_traceparent = EnvironmentGetter().get({}, "OTEL_CONTEXT")
     if old_style_traceparent is not None:
         LOGGER.warning(
-            "OTEL_CONTEXT environment variable is deprecated; use traceparent and baggage variables instead."
+            "OTEL_CONTEXT environment variable is deprecated; use TRACEPARENT and BAGGAGE "
+            "variables instead."
         )
         # = TraceContextTextMapPropagator()
         ctx = propagator.extract(carrier="OTEL_CONTEXT", context=ctx, getter=EnvVarContextGetter())
