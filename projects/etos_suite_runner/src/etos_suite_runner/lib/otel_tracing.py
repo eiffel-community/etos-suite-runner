@@ -83,5 +83,3 @@ def get_current_context() -> opentelemetry.context.context.Context:
         ctx = propagator.extract(carrier="OTEL_CONTEXT", context=ctx, getter=EnvVarContextGetter())
     ctx = propagator.extract(carrier={}, context=ctx, getter=EnvironmentGetter())
     return ctx
-
-
