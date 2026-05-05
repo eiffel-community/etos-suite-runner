@@ -150,9 +150,14 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
                     self._record_exception(exception)
                     raise
                 self.logger.info("ETR triggered.")
-            timeout = time.time() + self.etos.debug.default_test_result_timeout
+            # In v1alpha (controller mode) the TestRun controller manages the
+            # deadline, so the suite runner should not enforce its own timeout.
+            if self.controller:
+                timeout = None
+            else:
+                timeout = time.time() + self.etos.debug.default_test_result_timeout
             try:
-                while time.time() < timeout:
+                while timeout is None or time.time() < timeout:
                     time.sleep(10)
                     if not self.started:
                         continue

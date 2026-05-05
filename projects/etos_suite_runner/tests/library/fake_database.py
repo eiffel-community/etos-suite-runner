@@ -87,7 +87,7 @@ class FakeDatabase:
         # ttl is unused since we do not actually make the post request that the regular
         # etcd client does. First argument to `Lease` is the ID that was returned by the
         # etcd server.
-        return Lease(len(self.expire) - 1)
+        return Lease(len(self.expire) - 1, client=None)  # type: ignore[arg-type]
 
     def get(self, path: str) -> list[bytes]:
         """Get an item from database."""
