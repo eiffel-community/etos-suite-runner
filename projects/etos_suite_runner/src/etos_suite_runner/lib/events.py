@@ -17,8 +17,12 @@
 """ETOS internal message bus module."""
 
 import os
+
 from etos_lib import ETOS
+from etos_lib.lib.exceptions import PublisherConfigurationMissing
 from etos_lib.logging.log_publisher import RabbitMQLogPublisher
+from etos_lib.messaging.events import Shutdown
+from etos_lib.messaging.types import Result
 
 
 class EventPublisher:
@@ -30,12 +34,21 @@ class EventPublisher:
         """Set up, but do not start, the RabbitMQ publisher."""
         if os.getenv("DISABLE_EVENT_PUBLISHING", "false").lower() == "true":
             self.disabled = True
-        publisher = etos.config.get("event_publisher")
-        if self.disabled is False and publisher is None:
+        v1_publisher = etos.config.get("event_publisher")
+        if self.disabled is False and v1_publisher is None:
             config = etos.config.etos_rabbitmq_publisher_data()
-            publisher = RabbitMQLogPublisher(**config, routing_key=None)
-            etos.config.set("event_publisher", publisher)
-        self.publisher = publisher
+            v1_publisher = RabbitMQLogPublisher(**config, routing_key=None)
+            etos.config.set("event_publisher", v1_publisher)
+        self.v1_publisher = v1_publisher
+
+        v2_publisher = None
+        if self.disabled is False:
+            try:
+                v2_publisher = etos.messagebus_publisher()
+            except PublisherConfigurationMissing:
+                v2_publisher = None
+        self.v2_publisher = v2_publisher
+
         self.identifier = identifier
 
     def __del__(self):
@@ -44,18 +57,38 @@ class EventPublisher:
 
     def close(self):
         """Close the RabbitMQ publisher if it is started."""
-        if self.publisher is not None and self.publisher.is_alive():
-            self.publisher.wait_for_unpublished_events()
-            self.publisher.close()
-            self.publisher.wait_close()
+        if self.v1_publisher is not None and self.v1_publisher.is_alive():
+            self.v1_publisher.wait_for_unpublished_events()
+            self.v1_publisher.close()
+            self.v1_publisher.wait_close()
 
-    def publish(self, event: dict):
+    def __publish(self, event: dict):
         """Publish an event to the ETOS internal message bus."""
+        if self.v1_publisher is None:
+            return
+        if not self.v1_publisher.running:
+            self.v1_publisher.start()
+        routing_key = f"{self.identifier}.event.{event.get('event')}"
+        self.v1_publisher.send_event(event, routing_key=routing_key)
+
+    def publish_shutdown(self, result: dict):
+        """Publish a shutdown event to the ETOS internal message bus."""
         if self.disabled:
             return
-        if self.publisher is None:
+
+        # SSEv1
+        self.__publish({"event": "shutdown", "data": result})
+
+        # SSEv2
+        if self.v2_publisher is None:
             return
-        if not self.publisher.running:
-            self.publisher.start()
-        routing_key = f"{self.identifier}.event.{event.get('event')}"
-        self.publisher.send_event(event, routing_key=routing_key)
+        self.v2_publisher.publish(
+            self.identifier,
+            Shutdown(
+                data=Result(
+                    conclusion=result.get("conclusion"),
+                    verdict=result.get("verdict"),
+                    description=result.get("description"),
+                )
+            ),
+        )

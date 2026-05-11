@@ -377,11 +377,7 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
             )
             raise
         finally:
-            event = {
-                "event": "shutdown",
-                "data": result.model_dump(),
-            }
-            self.event_publisher.publish(event)
+            self.event_publisher.publish_shutdown(result.model_dump())
 
     def graceful_exit(self, *_) -> None:
         """Attempt to gracefully exit the running job."""
