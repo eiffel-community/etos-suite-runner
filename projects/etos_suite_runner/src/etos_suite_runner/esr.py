@@ -33,7 +33,10 @@ from environment_provider.environment import release_full_environment
 from environment_provider.environment_provider import EnvironmentProvider
 from etos_lib import ETOS
 from etos_lib.kubernetes.schemas.testrun import Suite
+from etos_lib.lib.exceptions import PublisherConfigurationMissing
 from etos_lib.logging.logger import FORMAT_CONFIG
+from etos_lib.messaging.events import Shutdown
+from etos_lib.messaging.types import Result as ShutdownResult
 from jsontas.jsontas import JsonTas
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
@@ -278,11 +281,9 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
         }
         self.etos.events.send(event, links, data)
 
-    def _run(self):
+    def _run(self, testrun_id: str):
         """Run the ESR main loop."""
-        testrun_id = None
         try:
-            testrun_id = self.params.testrun_id
             self.logger.info("ETOS suite runner is starting up", extra={"user_log": True})
             # TestRun identifier, correlates to the TERCC that should be sent when
             # running in the ETOS Kubernetes controller environment.
@@ -365,11 +366,17 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
             conclusion="Failed",
             description="ESR did not execute",
         )
+        testrun_id = None
         try:
-            self._run()
+            testrun_id = self.params.testrun_id
+            self._run(testrun_id)
             result = self.result()
             return result
         except Exception:  # pylint:disable=bare-except
+            self.logger.exception(
+                "ETOS suite runner failed to start test execution",
+                extra={"user_log": True},
+            )
             result = Result(
                 conclusion="Failed",
                 verdict="Inconclusive",
@@ -382,6 +389,28 @@ class ESR(OpenTelemetryBase):  # pylint:disable=too-many-instance-attributes
                 "data": result.model_dump(),
             }
             self.event_publisher.publish(event)
+            self.send_shutdown(testrun_id, result)
+
+    def send_shutdown(self, testrun_id: str | None, result: Result) -> None:
+        """Send shutdown event to the SSEv2 message bus."""
+        if testrun_id is None:
+            return
+        try:
+            v2_publisher = self.etos.messagebus_publisher()
+        except PublisherConfigurationMissing:
+            v2_publisher = None
+        if v2_publisher is None:
+            return
+        v2_publisher.publish(
+            testrun_id,
+            Shutdown(
+                data=ShutdownResult(
+                    conclusion=result.conclusion,
+                    verdict=result.verdict,
+                    description=result.description,
+                ),
+            ),
+        )
 
     def graceful_exit(self, *_) -> None:
         """Attempt to gracefully exit the running job."""
