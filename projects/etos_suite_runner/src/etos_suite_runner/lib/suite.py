@@ -17,6 +17,7 @@
 
 import json
 import logging
+import os
 import threading
 import time
 from typing import Iterator, Union
@@ -156,10 +157,24 @@ class SubSuite(OpenTelemetryBase):  # pylint:disable=too-many-instance-attribute
                 timeout = None
             else:
                 timeout = time.time() + self.etos.debug.default_test_result_timeout
+            # Bound the wait for the sub suite to start so an execution space that is
+            # aborted before the test runner starts does not block until the deadline.
+            start_timeout = int(os.getenv("ETOS_SUB_SUITE_START_TIMEOUT", "1800"))
+            start_deadline = time.time() + start_timeout if self.controller else None
             try:
                 while timeout is None or time.time() < timeout:
                     time.sleep(10)
                     if not self.started:
+                        if start_deadline is not None and time.time() >= start_deadline:
+                            self.test_start_exception_caught = True
+                            self.logger.error(
+                                "Sub suite %r did not start within %ds. The execution "
+                                "space was likely aborted before the test runner started.",
+                                self.environment.get("name"),
+                                start_timeout,
+                                extra={"user_log": True},
+                            )
+                            break
                         continue
                     self.logger.info("ETOS test runner has started", extra={"user_log": True})
                     self.request_finished_event()
