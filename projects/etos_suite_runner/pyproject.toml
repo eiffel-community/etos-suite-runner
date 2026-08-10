@@ -17,7 +17,7 @@ classifiers = [
 requires-python = ">=3.13"
 dependencies = [
     "packageurl-python~=0.11",
-    "cryptography>=42.0.4,<43.0.0",
+    "cryptography>=50.0.0,<51.0.0",
     # etos-lib version is determined by etos-environment-provider;
     # keep this as a loose lower bound to avoid diamond dependency conflicts.
     "etos_lib>=5.4.0,<6.0.0",
