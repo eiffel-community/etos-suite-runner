@@ -148,9 +148,8 @@ class ESRParameters:
                 artifact_created = request_artifact_created(
                     self.etos,
                     artifact_id=artifact_id,
-                    wait=not self.etos_controller,
                 )
-                if self.etos_controller and artifact_created is None:
+                if artifact_created is None:
                     raise ArtifactNotFoundException(artifact_id)
             else:
                 tercc = EiffelTestExecutionRecipeCollectionCreatedEvent()

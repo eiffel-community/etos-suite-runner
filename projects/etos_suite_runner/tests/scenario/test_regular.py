@@ -188,7 +188,6 @@ class TestRegularScenario(TestCase):
         request_artifact_created.assert_called_once_with(
             etos,
             artifact_id=artifact_id,
-            wait=False,
         )
 
     def test_full_scenario(self):
