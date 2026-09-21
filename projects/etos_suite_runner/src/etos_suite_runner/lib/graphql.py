@@ -40,7 +40,7 @@ def request(etos, query):
     yield from wait_generator
 
 
-def request_artifact_created(etos, tercc=None, artifact_id=None):
+def request_artifact_created(etos, tercc=None, artifact_id=None, wait=True):
     """Fetch artifact created events from GraphQL.
 
     :param etos: ETOS client instance.
@@ -49,6 +49,8 @@ def request_artifact_created(etos, tercc=None, artifact_id=None):
     :type tercc: dict
     :param artifact_id: The ID of the artifact created.
     :type artifact_id: str
+    :param wait: Whether to retry until the configured wait timeout.
+    :type wait: bool
     :return: Artifact created event.
     :rtype: :obj:`EiffelArtifactCreatedEvent`
     """
@@ -59,7 +61,8 @@ def request_artifact_created(etos, tercc=None, artifact_id=None):
     else:
         query = ARTIFACTS % artifact_id
 
-    for response in request(etos, query):
+    responses = request(etos, query) if wait else (etos.graphql.execute(query),)
+    for response in responses:
         try:
             created_node = next(etos.utils.search(response, "node"))[1]
         except StopIteration:
