@@ -102,10 +102,20 @@ class SuiteRunner(OpenTelemetryBase):  # pylint:disable=too-few-public-methods
         :type test_suite: :obj:`TestSuite`
         """
         FORMAT_CONFIG.identifier = self.params.testrun_id
+        # This method runs in a thread pool, and OpenTelemetry contexts aren't propagated to
+        # threads automatically, so the context must be attached for the results and
+        # EiffelTestSuiteFinishedEvent to be part of the trace.
+        otel_context = TraceContextTextMapPropagator().extract(
+            carrier=test_suite.otel_context_carrier
+        )
+        otel_context_token = opentelemetry.context.attach(otel_context)
         try:
-            test_suite.start()  # send EiffelTestSuiteStartedEvent
-            # All sub suites finished.
+            try:
+                test_suite.start()  # send EiffelTestSuiteStartedEvent
+                # All sub suites finished.
+            finally:
+                results = test_suite.results()
+                test_suite.finish(*results)  # send EiffelTestSuiteFinishedEvent
+                test_suite.release_all()
         finally:
-            results = test_suite.results()
-            test_suite.finish(*results)  # send EiffelTestSuiteFinishedEvent
-            test_suite.release_all()
+            opentelemetry.context.detach(otel_context_token)
